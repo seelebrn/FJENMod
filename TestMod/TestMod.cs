@@ -591,7 +591,7 @@ static class MartialMoveInfo_GetDesc
 
 }
 
-[HarmonyPatch(typeof(DefenceEffect), "GetFinalDesc")]
+[HarmonyPatch(typeof(DefenceEffect), "GetDesc", new Type[] { typeof(MartialSkillInfo), typeof(int) })]
 static class DefenceEffect_GetFinalDesc
 {
 
@@ -859,6 +859,17 @@ static class JSONObject_Patch4
 
 }
 
+[HarmonyPatch(typeof(TimeModel), "GetChineseTime")]
+static class TimeModel_GetChineseTime
+    {
+        static void Postfix(TimeModel __instance, ref string __result) 
+        {
+            TimeSpan timeSpan = new TimeSpan(Convert.ToInt64(SingletonMonoBehaviour<TimeModel>.Instance.mUserData.mGameNow * 10000000.0));
+            //Debug.Log("Chinese Time : " + __instance.mUserData.Hours + " // " + __instance.mUserData.Quarters);
+            //Debug.Log("Other Time : " + __instance.GameDateTime.Hours + " // " + timeSpan.Minutes);
+            __result = __instance.GameDateTime.Hours + " h, " + timeSpan.Minutes + " min";
+        }
+    }
 public static class Helpers
 {
     public static readonly Regex cjkCharRegex = new Regex(@"\p{IsCJKUnifiedIdeographs}");
