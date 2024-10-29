@@ -279,30 +279,4 @@ namespace FromJianghuENMod
             }
         }
     }
-    [HarmonyPatch(typeof(TextMeshProUGUI), "GenerateTextMesh")]
-    internal static class TextMeshProUGUI_GenerateTextMesh
-    {
-        private static void Postfix(TextMeshProUGUI __instance)
-        {
-            if (__instance != null && __instance.text != null)
-            {
-                if (__instance.text.Contains("!Wrapping!"))
-                {
-                    __instance.textWrappingMode = TextWrappingModes.NoWrap;
-                    __instance.text = __instance.text.Replace("!Wrapping!", "");
-                }
-            }
-        }
-    }
-    [HarmonyPatch(typeof(TextMeshProUGUI), "OnDisable")]
-    internal static class TextMeshProUGUI_OnDisable
-    {
-        private static void Postfix(TextMeshProUGUI __instance)
-        {
-            if (__instance != null)
-            {
-              __instance.textWrappingMode = TextWrappingModes.NoWrap;
-            }
-        }
-    }
 }
