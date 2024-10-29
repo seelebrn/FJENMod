@@ -44,6 +44,12 @@
     <Reference Include="Assembly-CSharp-firstpass">
       <HintPath>..\..\..\Assembly-CSharp-firstpass.dll</HintPath>
     </Reference>
+    <Reference Include="AssetsTools.NET, Version=3.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\AssetsTools.NET.3.0.0\lib\net40\AssetsTools.NET.dll</HintPath>
+    </Reference>
+    <Reference Include="AssetsTools.NET.MonoCecil, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\AssetsTools.NET.MonoCecil.1.0.0\lib\net40\AssetsTools.NET.MonoCecil.dll</HintPath>
+    </Reference>
     <Reference Include="BepInEx">
       <HintPath>..\..\..\..\..\BepInEx\core\BepInEx.dll</HintPath>
     </Reference>
@@ -52,6 +58,18 @@
     </Reference>
     <Reference Include="DOTween">
       <HintPath>..\..\..\DOTween.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Cecil, Version=0.10.4.0, Culture=neutral, PublicKeyToken=50cebf1cceb9d05e, processorArchitecture=MSIL">
+      <HintPath>..\packages\Mono.Cecil.0.10.4\lib\net40\Mono.Cecil.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Cecil.Mdb, Version=0.10.4.0, Culture=neutral, PublicKeyToken=50cebf1cceb9d05e, processorArchitecture=MSIL">
+      <HintPath>..\packages\Mono.Cecil.0.10.4\lib\net40\Mono.Cecil.Mdb.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Cecil.Pdb, Version=0.10.4.0, Culture=neutral, PublicKeyToken=50cebf1cceb9d05e, processorArchitecture=MSIL">
+      <HintPath>..\packages\Mono.Cecil.0.10.4\lib\net40\Mono.Cecil.Pdb.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Cecil.Rocks, Version=0.10.4.0, Culture=neutral, PublicKeyToken=50cebf1cceb9d05e, processorArchitecture=MSIL">
+      <HintPath>..\packages\Mono.Cecil.0.10.4\lib\net40\Mono.Cecil.Rocks.dll</HintPath>
     </Reference>
     <Reference Include="ScriptEngine">
       <HintPath>..\..\..\..\..\BepInEx\plugins\ScriptEngine.dll</HintPath>
@@ -91,13 +109,14 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\UnityEngine.UIModule.dll</HintPath>
     </Reference>
-    <Reference Include="UnityModManager">
-      <HintPath>..\..\..\..\..\..\..\..\..\..\utils\UnityModManager\UnityModManager.dll</HintPath>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Dump.cs" />
     <Compile Include="TestMod.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
