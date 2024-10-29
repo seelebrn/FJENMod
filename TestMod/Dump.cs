@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Globalization;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using AssetsTools.NET;
 using AssetsTools.NET.Extra;
 using FromJianghuENMod;
@@ -14,24 +9,23 @@ namespace TestMod
 {
     internal class Dump
     {
-        static public List<string> untranslated = new List<string>();
+        static public List<string> untranslated = new();
         public static void LoadAssetsFile(string filePath)
         {
-            var manager = new AssetsManager();
+            AssetsManager manager = new();
             manager.LoadClassPackage(Path.Combine(BepInEx.Paths.PluginPath, "classdata.tpk"));
 
-            var afileInst = manager.LoadAssetsFile(filePath, true);
-            var afile = afileInst.file;
+            AssetsFileInstance afileInst = manager.LoadAssetsFile(filePath, true);
+            AssetsFile afile = afileInst.file;
 
             manager.LoadClassDatabaseFromPackage(afile.Metadata.UnityVersion);
             manager.MonoTempGenerator = new MonoCecilTempGenerator(BepInEx.Paths.ManagedPath);
-            foreach (var goInfo in afile.GetAssetsOfType(AssetClassID.MonoBehaviour))
+            foreach (AssetFileInfo goInfo in afile.GetAssetsOfType(AssetClassID.MonoBehaviour))
             {
-                
                 try
                 {
-                    var texBase = manager.GetBaseField(afileInst, goInfo);
-                    var text = texBase["m_Text"].AsString;
+                    AssetTypeValueField texBase = manager.GetBaseField(afileInst, goInfo);
+                    string text = texBase["m_Text"].AsString;
                     Debug.Log($"Found file in " + filePath + " : " + "Text : " + text);
                     if (Helpers.IsChinese(text))
                     {
@@ -43,28 +37,25 @@ namespace TestMod
                 }
                 catch
                 {
-
                 }
-
-
             }
         }
         public static void LoadAssetBundles(string filePath)
         {
-            var manager = new AssetsManager();
+            AssetsManager manager = new();
 
-            var bunInst = manager.LoadBundleFile(filePath, true);
-            var afileInst = manager.LoadAssetsFileFromBundle(bunInst, 0, false);
+            BundleFileInstance bunInst = manager.LoadBundleFile(filePath, true);
+            AssetsFileInstance afileInst = manager.LoadAssetsFileFromBundle(bunInst, 0, false);
             manager.MonoTempGenerator = new MonoCecilTempGenerator(BepInEx.Paths.ManagedPath);
 
-            var afile = afileInst.file;
+            AssetsFile afile = afileInst.file;
 
-            foreach (var goInfo in afile.GetAssetsOfType(AssetClassID.MonoBehaviour))
+            foreach (AssetFileInfo goInfo in afile.GetAssetsOfType(AssetClassID.MonoBehaviour))
             {
                 try
                 {
-                    var texBase = manager.GetBaseField(afileInst, goInfo);
-                    var text = texBase["m_Text"].AsString;
+                    AssetTypeValueField texBase = manager.GetBaseField(afileInst, goInfo);
+                    string text = texBase["m_Text"].AsString;
                     Debug.Log($"Found file in " + filePath + " : " + "Text : " + text);
                     if(Helpers.IsChinese(text))
                     {
@@ -76,11 +67,8 @@ namespace TestMod
                 }
                 catch
                 {
-
                 }
-
             }
         }
-
     }
 }
