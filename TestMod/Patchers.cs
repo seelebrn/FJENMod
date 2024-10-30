@@ -107,21 +107,26 @@ namespace FromJianghuENMod
                 return instructions; // Return original instructions if no helper is found
             }
 
+            // Use a list to store the modified instructions
             List<CodeInstruction> codes = new(instructions);
 
             // Iterate over the IL codes and apply replacements using the helper's operationReplacements
-            for (int i = 0; i < codes.Count; i++)
+            foreach (CodeInstruction code in codes)
             {
-                foreach (TranspileOperationReplacer replacement in helper.operationReplacements)
+                if (code.opcode == OpCodes.Ldstr)
                 {
-                    if (codes[i].opcode == OpCodes.Ldstr && codes[i].operand.ToString() == replacement.originalStringValue)
+                    foreach (TranspileOperationReplacer replacement in helper.operationReplacements)
                     {
-                        codes[i].operand = replacement.newStringValue;
+                        if (code.operand is string operand && operand == replacement.originalStringValue)
+                        {
+                            code.operand = replacement.newStringValue;
+                            break; // Exit the inner loop once a replacement is made
+                        }
                     }
                 }
             }
 
-            return codes.AsEnumerable();
+            return codes;
         }
     }
 
