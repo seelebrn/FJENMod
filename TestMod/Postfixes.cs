@@ -111,7 +111,7 @@ namespace FromJianghuENMod
                     }
                     catch (Exception e)
                     {
-                        Debug.LogError($"Error translating JSON : {e.Message}");
+                        FJDebug.LogError($"Error translating JSON : {e.Message}");
                     }
                 }
             }

@@ -1,4 +1,5 @@
-﻿using HarmonyLib;
+﻿using BepInEx;
+using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,8 +14,10 @@ namespace FromJianghuENMod
     [Serializable]
     public class ModSettings
     {
-        public Dictionary<string, object> GeneralSettings { get; set; }
-        public List<PatcherInfo> Patchers { get; set; } = new List<PatcherInfo>();
+        public static ModSettings Instance;
+
+        private Dictionary<string, object> GeneralSettings { get; set; }
+        private List<PatcherInfo> Patchers { get; set; } = new List<PatcherInfo>();
         public ModSettings()
         {
             GeneralSettings = new();
@@ -26,8 +29,22 @@ namespace FromJianghuENMod
             Patchers = new();
             Serialize(filePath);
         }
+        public static void Initialize()
+        {
+            string settingsPath = Path.Combine(Paths.PluginPath, "FJSettings.txt");
+            if (!Deserialize(settingsPath, out Instance))
+            {
+                Debug.Log("NONO DESERIALIZED");
+                Instance = new(settingsPath);
+            }
+            else
+            {
+
+                Debug.Log("happy");
+            }
+        }
         // Serialize the settings to a file
-        public void Serialize(string filePath)
+        private void Serialize(string filePath)
         {
             using (StreamWriter writer = new(filePath))
             {
@@ -47,7 +64,7 @@ namespace FromJianghuENMod
         }
 
         // Deserialize the settings from a file
-        public static bool Deserialize(string filePath, out ModSettings deserializedSettings)
+        private static bool Deserialize(string filePath, out ModSettings deserializedSettings)
         {
             if (!File.Exists(filePath))
             {
@@ -62,7 +79,7 @@ namespace FromJianghuENMod
 
             foreach (string line in lines)
             {
-                if (string.IsNullOrWhiteSpace(line)) continue;
+                if (string.IsNullOrWhiteSpace(line) || line.StartsWith("/")) continue;
 
                 //if the string is within the [] brackets, it is a section
                 if (line.StartsWith("[") && line.EndsWith("]"))
@@ -75,17 +92,26 @@ namespace FromJianghuENMod
                 switch (currentSection)
                 {
                     case "[General Settings]":
-                        string[] parts = line.Split(':');
+                        string[] parts = line.Split('=');
                         if (parts.Length == 2)
                         {
                             string key = parts[0].Trim();
                             object value = parts[1].Trim();
-                            deserializedSettings.GeneralSettings[key] = value;
+
+                            //try to convert the value to primitive types
+                            if (int.TryParse(value.ToString(), out int intValue))
+                                Instance.GeneralSettings[key] = intValue;
+                            else if (float.TryParse(value.ToString(), out float floatValue))
+                                Instance.GeneralSettings[key] = floatValue;
+                            else if (bool.TryParse(value.ToString(), out bool boolValue))
+                                Instance.GeneralSettings[key] = boolValue;
+                            else
+                                Instance.GeneralSettings[key] = value;
                         }
                         break;
                     case "[Patchers]":
                         if (PatcherInfo.TryCreatePatcherFromString(line, out PatcherInfo patcher))
-                            deserializedSettings.Patchers.Add(patcher);
+                            Instance.Patchers.Add(patcher);
                         break;
                 }
             }
@@ -93,12 +119,27 @@ namespace FromJianghuENMod
             return true;
         }
 
-        public void ApplySettings()
+        public static void ApplySettings()
         {
-            foreach (PatcherInfo patcher in Patchers)
+            foreach (PatcherInfo patcher in Instance.Patchers)
             {
                 patcher.Patch();
             }
+        }
+        public static T GetSettingValue<T>(string key)
+        {
+            if (Instance.GeneralSettings.TryGetValue(key, out object value))
+            {
+                if (value is T typedValue)
+                    return typedValue;
+                else
+                    FJDebug.Log($"Failed to get {key} value as {typeof(T)} as it's a different type.");
+            }
+            else
+            {
+                FJDebug.Log($"Failed to get {key} value as it's not in the dictionary.");
+            }
+            return default;
         }
     }
 
@@ -111,14 +152,17 @@ namespace FromJianghuENMod
         public List<string> Parameters { get; set; }
         public string PatchType { get; set; }
 
-        public override string ToString() => $"{ClassName}.{MethodName}({string.Join(",", Parameters)}){PatchType}";
+        public override string ToString() => $"{ClassName}.{MethodName}({string.Join(",", Parameters)}).{PatchType}";
 
         private MethodInfo OriginalMethodInfo
         {
             get
             {
                 if (Parameters == null || Parameters.Count == 0)
+                {
+                    FJDebug.Log($"resolving classname {ClassName}");
                     return AccessTools.Method(Helpers.ResolveType(ClassName), MethodName);
+                }
                 else
                     return AccessTools.Method(Helpers.ResolveType(ClassName), MethodName, Parameters.Select(Helpers.ResolveType).ToArray());
             }
@@ -130,7 +174,6 @@ namespace FromJianghuENMod
             Parameters = parameters;
             PatchType = patchType;
         }
-
         public static bool TryCreatePatcherFromString(string sourceString, out PatcherInfo result)
         {
             Match match = Regex.Match(sourceString, @"(?<class>[\w\.]+)\.(?<method>\w+)\((?<params>[^\)]*)\)\.(?<patchType>\w+)");
@@ -150,31 +193,32 @@ namespace FromJianghuENMod
 
 
                 result = new PatcherInfo(className, methodName, new(parameters), patchType);
-                Debug.Log($"Created a PatcherInfo successfully! {result}");
+                FJDebug.Log($"Created a PatcherInfo successfully! {result}");
             }
             else
             {
                 result = null;
-                Debug.LogError($"Failed to create a PatcherInfo object from the source string: {sourceString}");
+                FJDebug.LogError($"Failed to create a PatcherInfo object from the source string: {sourceString}");
             }
             return result != null;
         }
- 
+
         public void Patch()
         {
+            FJDebug.Log($"Patching ...)");
             // Apply the transpiler patch
             try
             {
-                Debug.Log($"Patching {ToString()}...)");
+                FJDebug.Log($"Patching {ToString()}...)");
                 if (PatchType == "Transpiler")
                     FromJianghuENMod.harmony.Patch(OriginalMethodInfo, transpiler: new HarmonyMethod(typeof(PatcherInfo).GetMethod(nameof(Transpiler), BindingFlags.Static | BindingFlags.Public)));
-                else if(PatchType == "Postfix")
-                    FromJianghuENMod.harmony.Patch(OriginalMethodInfo, transpiler: new HarmonyMethod(typeof(PatcherInfo).GetMethod(nameof(Transpiler), BindingFlags.Static | BindingFlags.Public)));
-                Debug.Log($"Patched successfully!");
+                //else if (PatchType == "Postfix")
+                //    FromJianghuENMod.harmony.Patch(OriginalMethodInfo, transpiler: new HarmonyMethod(typeof(PatcherInfo).GetMethod(nameof(Transpiler), BindingFlags.Static | BindingFlags.Public)));
+                FJDebug.Log($"Patched successfully!");
             }
             catch (Exception e)
             {
-                Debug.LogError($"Error patching {OriginalMethodInfo.Name}: {e.Message}");
+                FJDebug.LogError($"Error patching {ToString()} {OriginalMethodInfo}: {e.Message}");
             }
         }
 
@@ -184,7 +228,6 @@ namespace FromJianghuENMod
         {
             // Use a list to store the modified instructions
             List<CodeInstruction> codes = new(instructions);
-
             // Iterate over the IL codes and apply replacements using the helper's operationReplacements
             foreach (CodeInstruction code in codes)
             {
@@ -192,7 +235,7 @@ namespace FromJianghuENMod
                 {
                     if (code.operand is string operand &&
                         !string.IsNullOrEmpty(operand) &&
-                        FromJianghuENMod.translationDict.TryGetValue(operand, out string translatedText))
+                        FromJianghuENMod.TryTranslatingString(operand, out string translatedText))
                     {
                         code.operand = translatedText;
                         break; // Exit the inner loop once a replacement is made

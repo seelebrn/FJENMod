@@ -69,7 +69,7 @@ namespace FromJianghuENMod
                 _ => typeName,
             };
             if (qualifiedTypeName != typeName)
-                Debug.Log($"Converted {typeName} to type name: {qualifiedTypeName}");
+                FJDebug.Log($"Converted {typeName} to type name: {qualifiedTypeName}");
             return qualifiedTypeName != typeName;
         }
         /// <summary>
@@ -86,7 +86,7 @@ namespace FromJianghuENMod
                 int genericStartIndex = typeString.IndexOf("<");
                 string genericTypeName = typeString.Substring(0, genericStartIndex); // e.g., "List"
                 string innerTypesName = typeString.Substring(genericStartIndex + 1, typeString.Length - genericStartIndex - 2); // e.g., "int"
-
+                FJDebug.Log($"Trying to resolve generic type: {genericTypeName} with inner types: {innerTypesName}. typestring: {typeString}");
                 //incase any type names need qualifying, do it first
                 if (FullyQualifyTypes(innerTypesName, out string qualifiedTypeName))
                     innerTypesName = qualifiedTypeName;
@@ -104,7 +104,7 @@ namespace FromJianghuENMod
                     innerTypes[i] = GetTypeFromAssembly(innerTypeName); // Resolve the inner type using GetTypeFromAssembly
                     if (innerTypes[i] == null)
                     {
-                        Debug.LogError($"Failed to resolve inner type: {innerTypeName}");
+                        FJDebug.LogError($"Failed to resolve inner type: {innerTypeName}");
                         return null;
                     }
                 }
@@ -113,15 +113,19 @@ namespace FromJianghuENMod
                 Type genericTypeDefinition = GetTypeFromAssembly(genericTypeName);
                 if (genericTypeDefinition == null)
                 {
-                    Debug.LogError($"Failed to resolve generic type: {genericTypeName}");
+                    FJDebug.LogError($"Failed to resolve generic type: {genericTypeName}");
                     return null;
                 }
-
+                else
+                {
+                    FJDebug.Log($"Successfully resolved generic type: {genericTypeName}");
+                }
                 // Make the generic type with the resolved inner types
                 return genericTypeDefinition.MakeGenericType(innerTypes);
             }
             else
             {
+                FJDebug.Log("Not generic, passing to GetTypeFromAssembly");
                 // If it's not a generic type, just resolve it normally
                 return GetTypeFromAssembly(typeString);
             }
@@ -131,7 +135,7 @@ namespace FromJianghuENMod
             Type type = Type.GetType(typeName);
             if (type == null)
             {
-                Debug.Log($"Couldn't find type {typeName} in default assembly, trying Assembly-Csharp");
+                FJDebug.Log($"Couldn't find type {typeName} in default assembly, trying Assembly-Csharp");
 
                 Assembly assembly = null;
                 foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
@@ -145,7 +149,7 @@ namespace FromJianghuENMod
 
                 if (assembly == null)
                 {
-                    Debug.LogError("Failed to find Assembly-CSharp in loaded assemblies.");
+                    FJDebug.LogError("Failed to find Assembly-CSharp in loaded assemblies.");
                     return null;
                 }
 
@@ -153,7 +157,7 @@ namespace FromJianghuENMod
                 type = assembly.GetType(typeName);
                 if (type == null)
                 {
-                    Debug.LogError($"Failed to find type {typeName} in both default assembly and Assembly-Csharp");
+                    FJDebug.LogError($"Failed to find type {typeName} in both default assembly and Assembly-Csharp");
 
                     // Get all types from the assembly
                     Type[] types = assembly.GetTypes();
@@ -161,16 +165,42 @@ namespace FromJianghuENMod
                     // Print each type's full name
                     foreach (Type t in types)
                     {
-                        Debug.Log($"TYPES: |{t.FullName}| |{typeName}| {t.FullName == typeName}");
+                        FJDebug.Log($"TYPES: |{t.FullName}| |{typeName}| {t.FullName == typeName}");
                         if (t.FullName == typeName)
                         {
-                            Debug.Log("Names match, try using this one");
-                            return t;
+                            FJDebug.Log("Names match, try using this one");
+                            type = t;
+                            break;
                         }
                     }
                 }
             }
+            if(type != null)
+                FJDebug.Log($"Found type {typeName}! {type}");
+            else
+                FJDebug.LogError($"Failed to find type {typeName} after all attempts");
             return type;
+        }
+        public static T TryGetComponentInChildren<T>(this MonoBehaviour monoBehavior, out T component, bool silent = true) where T : MonoBehaviour
+        {
+            component = monoBehavior.GetComponentInChildren<T>();
+            if (!component && !silent)
+            {
+                FJDebug.LogError($"Failed to find {typeof(T)} component in children of {monoBehavior.name}");
+            }
+            return component;
+        }
+    }
+    public static class FJDebug
+    {
+        public static void Log(object message)
+        {
+            if (ModSettings.GetSettingValue<bool>("enableDebugLog"))
+                Debug.Log($"[FromJianghuENMod Log] {message}");
+        }
+        public static void LogError(object message)
+        {
+            Debug.LogError($"[FromJianghuENMod Error] {message}");
         }
     }
 }

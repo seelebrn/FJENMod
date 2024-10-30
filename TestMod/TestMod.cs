@@ -21,11 +21,9 @@ namespace FromJianghuENMod
         public static Dictionary<string, string> UIText = new();
         public static Dictionary<string, string> translationDict;
 
-        private StreamWriter untranslatedWriter;
+        private static StreamWriter untranslatedWriter;
 
         private static FileSystemWatcher watcher;
-
-        public static ModSettings settings;
 
         public static HashSet<string> untranslated = new();
         public static HashSet<string> obsolete = new();
@@ -63,11 +61,11 @@ namespace FromJianghuENMod
                     if (!newDict.ContainsKey(pair.Key))
                         newDict.Add(pair.Key, pair.Value);
                     else
-                        Debug.Log($"Found a duplicated line while parsing {filePath}: {pair.Key}");
+                        FJDebug.Log($"Found a duplicated line while parsing {filePath}: {pair.Key}");
                 }
             }
 
-            Debug.Log("Dictionary reloaded !");
+            FJDebug.Log("Dictionary reloaded !");
 
             translationDict = newDict;
         }
@@ -75,11 +73,12 @@ namespace FromJianghuENMod
         public static Harmony harmony;
         public void Awake()
         {
-            Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
-            InitializeTranslationDictionary("KV.txt");
-            Logger.LogInfo("Hello World ! Welcome to Cadenza's plugin !");
             harmony = new Harmony("Cadenza.IWOL.EnMod");
-            InitializeSettings();
+            Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
+            ModSettings.Initialize();
+            InitializeTranslationDictionary("KV.txt");
+            ModSettings.ApplySettings();
+            Logger.LogInfo("Hello World ! Welcome to Cadenza's plugin !");
             harmony.PatchAll();
         }
 
@@ -87,16 +86,6 @@ namespace FromJianghuENMod
         {
             harmony?.UnpatchSelf();
             untranslatedWriter?.Close();
-        }
-        private void InitializeSettings()
-        {
-            string settingsPath = Path.Combine(Paths.PluginPath, "FJSettings.txt");
-            if (!ModSettings.Deserialize(settingsPath, out settings))
-            {
-                settings = new(settingsPath);
-            }
-
-            settings.ApplySettings();
         }
 
         /// <summary>
@@ -108,23 +97,22 @@ namespace FromJianghuENMod
         public static bool TryTranslatingString(string key, out string translatedString)
         {
             key = key.Replace("\r", "\\r").Replace("\n", "\\n").Replace("\"", "\\\"");
+            translatedString = key;
 
-            if (!Helpers.IsChinese(key))
-            {
-                translatedString = key;
-            }
-            else if (translationDict.TryGetValue(key, out string value))
+            if (Helpers.IsChinese(key) && translationDict.TryGetValue(key, out string value))
             {
                 translatedString = value;
             }
-            else
+            else if (ModSettings.GetSettingValue<bool>("unloadUntranslatedStrings"))
             {
-                if (!Helpers.IsChineseOnly(key) && untranslated.Add(key))
+                if (Helpers.IsChineseOnly(key) && untranslated.Add(key))
                 {
-                    Debug.Log($"Failed to find translation for key: {key}. Putting it in untranslated list.");
+                    FJDebug.Log($"Failed to find translation for key: {key}. Putting it in untranslated list.");
+                    untranslated.Add(key);
+                    UpdateUntranslatedTextFile();
                 }
-                translatedString = key;
             }
+
             return translatedString != key;
         }
 
@@ -136,7 +124,7 @@ namespace FromJianghuENMod
             if (Input.GetKeyUp(KeyCode.F3)) ScanAndDumpAssets();
         }
 
-        private void UpdateUntranslatedTextFile()
+        private static void UpdateUntranslatedTextFile()
         {
             string pathToUntranslated = Path.Combine(Paths.PluginPath, "untranslated.txt");
 
@@ -157,13 +145,13 @@ namespace FromJianghuENMod
 
         private void ExportStrings()
         {
-            Debug.Log("Cleaning a few things...");
+            FJDebug.Log("Cleaning a few things...");
 
             Helpers.DeleteFileIfExists(Path.Combine(Paths.PluginPath, "untranslated.txt"));
             Helpers.DeleteFileIfExists(Path.Combine(Paths.PluginPath, "obsolete.txt"));
             Helpers.DeleteFileIfExists(Path.Combine(Paths.PluginPath, "NewKV.txt"));
 
-            Debug.Log("Exporting untranslated strings...");
+            FJDebug.Log("Exporting untranslated strings...");
             string untranslatedPath = Path.Combine(Paths.PluginPath, "untranslated.txt");
             using (StreamWriter untranslatedWriter = new(untranslatedPath, append: true))
             {
@@ -175,9 +163,9 @@ namespace FromJianghuENMod
                     }
                 }
             }
-            Debug.Log("Successfully (I hope) exported untranslated strings... !");
+            FJDebug.Log("Successfully (I hope) exported untranslated strings... !");
 
-            Debug.Log("Exporting obsolete strings...");
+            FJDebug.Log("Exporting obsolete strings...");
             string obsoletePath = Path.Combine(Paths.PluginPath, "obsolete.txt");
             using (StreamWriter obsoleteWriter = new(obsoletePath, append: true))
             {
@@ -189,9 +177,9 @@ namespace FromJianghuENMod
                     }
                 }
             }
-            Debug.Log("Successfully (I hope) exported obsolete strings... !");
+            FJDebug.Log("Successfully (I hope) exported obsolete strings... !");
 
-            Debug.Log("Creating your new KV...! ");
+            FJDebug.Log("Creating your new KV...! ");
             string newKVPath = Path.Combine(Paths.PluginPath, "NewKV.txt");
             using (StreamWriter newKVWriter = new(newKVPath, append: true))
             {
@@ -203,7 +191,7 @@ namespace FromJianghuENMod
                     }
                 }
             }
-            Debug.Log("Successfully (I hope) created a new KV !");
+            FJDebug.Log("Successfully (I hope) created a new KV !");
 
             System.Media.SystemSounds.Beep.Play();
             System.Threading.Thread.Sleep(1000);
@@ -233,7 +221,7 @@ namespace FromJianghuENMod
                 if (translationDict.ContainsValue(x.text) && !keystoupdate.ContainsValue(x.text))
                 {
                     keystoupdate.Add(translationDict.FirstOrDefault(zz => zz.Value == x.text).Key, x.text);
-                    Debug.Log("KeyToUpdate filled with " + translationDict.FirstOrDefault(z => z.Value == x.text).Key + "¤" + x.text);
+                    FJDebug.Log("KeyToUpdate filled with " + translationDict.FirstOrDefault(z => z.Value == x.text).Key + "¤" + x.text);
                 }
             }
 
@@ -242,7 +230,7 @@ namespace FromJianghuENMod
                 if (translationDict.ContainsValue(y.text) && !keystoupdate.ContainsValue(y.text))
                 {
                     keystoupdate.Add(translationDict.First(z => z.Value == y.text).Key, y.text);
-                    Debug.Log("KeyToUpdate filled with " + translationDict.FirstOrDefault(z => z.Value == y.text).Key + "¤" + y.text);
+                    FJDebug.Log("KeyToUpdate filled with " + translationDict.FirstOrDefault(z => z.Value == y.text).Key + "¤" + y.text);
                 }
             }
             translationDict.Clear();
@@ -255,9 +243,9 @@ namespace FromJianghuENMod
                 {
                     if (keystoupdate.ContainsValue(x.text) && translationDict.ContainsKey(chstring))
                     {
-                        Debug.Log("Old Value = " + x.text);
-                        Debug.Log("CH key = " + chstring);
-                        Debug.Log("Newvalue = " + translationDict[chstring]);
+                        FJDebug.Log("Old Value = " + x.text);
+                        FJDebug.Log("CH key = " + chstring);
+                        FJDebug.Log("Newvalue = " + translationDict[chstring]);
 
                         if (x.text != translationDict[chstring])
                         {
@@ -274,9 +262,9 @@ namespace FromJianghuENMod
                     string chstring2 = keystoupdate.FirstOrDefault(zz => zz.Value == tmpro.text).Key;
                     if (keystoupdate.ContainsValue(tmpro.text) && translationDict.ContainsKey(chstring2))
                     {
-                        Debug.Log($"Old Value = {tmpro.text}");
-                        Debug.Log($"CH key = {chstring2}");
-                        Debug.Log($"Newvalue = {translationDict[chstring2]}");
+                        FJDebug.Log($"Old Value = {tmpro.text}");
+                        FJDebug.Log($"CH key = {chstring2}");
+                        FJDebug.Log($"Newvalue = {translationDict[chstring2]}");
 
                         if (tmpro.text != translationDict[chstring2])
                         {
@@ -297,7 +285,7 @@ namespace FromJianghuENMod
                 {
                     if (!x.FullName.Contains("resS"))
                     {
-                        Debug.Log("Now scanning : " + x.FullName);
+                        FJDebug.Log("Now scanning : " + x.FullName);
                         Dump.LoadAssetsFile(x.FullName);
                     }
                 }
@@ -308,7 +296,7 @@ namespace FromJianghuENMod
             {
                 if (!x.FullName.Contains("manifest"))
                 {
-                    Debug.Log("Now scanning : " + x.FullName);
+                    FJDebug.Log("Now scanning : " + x.FullName);
                     Dump.LoadAssetBundles(x.FullName);
                 }
             }

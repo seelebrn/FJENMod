@@ -1,10 +1,8 @@
 ﻿using HarmonyLib;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TMPro;
+using UIWidgets.Examples;
+using UnityEngine;
+using UnityEngine.UI;
 
 namespace FromJianghuENMod
 {
@@ -17,7 +15,7 @@ namespace FromJianghuENMod
             {
                 __instance.fontSizeMin = 14;
             }
-            if (__instance.name == "Content")
+            else if (__instance.name == "Content")
             {
                 __instance.enableAutoSizing = true;
                 __instance.fontSizeMin = 19;
@@ -29,7 +27,7 @@ namespace FromJianghuENMod
                 __instance.SetVerticesDirty();
                 __instance.SetLayoutDirty();
             }
-            if (__instance.name != "Label" || __instance.name != "Content")
+            else
             {
                 __instance.enableAutoSizing = true;
                 __instance.fontSizeMin = 16;
@@ -37,5 +35,5 @@ namespace FromJianghuENMod
             }
         }
     }
-
+   
 }
