@@ -11,6 +11,7 @@ namespace FromJianghuENMod
     {
         static void Prefix(TextMeshProUGUI __instance)
         {
+
             if (__instance.name == "Label")
             {
                 __instance.fontSizeMin = 14;
@@ -35,5 +36,44 @@ namespace FromJianghuENMod
             }
         }
     }
-   
+    [HarmonyPatch(typeof(TextMeshProUGUI), "OnEnable")]
+    static class TMPro_TextMeshProUGUI_Enable
+    {
+        static void Prefix(TextMeshProUGUI __instance)
+        {
+            Helpers.TryPrintOutInfo(__instance);
+        }
+    }
+    [HarmonyPatch(typeof(Image), "OnEnable")]
+    static class Image_Awake
+    {
+        static void Postfix(Image __instance)
+        {
+            if (!__instance) return;
+
+            Helpers.TryPrintOutInfo(__instance);
+
+            if (ModSettings.TryGetApplicableObjectResizer(__instance, out ObjectResizerInfo resizer))
+            {
+                resizer.ApplyObjectResizer(__instance);
+            }
+        }
+    }
+    [HarmonyPatch(typeof(LayoutGroup), "OnEnable")]
+    static class LayoutGroup_Awake
+    {
+        static void Postfix(LayoutGroup __instance)
+        {
+            if (!__instance) return;
+
+            if (ModSettings.TryGetApplicableLayoutGroupChanger(__instance, out LayoutGroupChangerInfo layoutChanger))
+            {
+                layoutChanger.ApplyLayoutChanger(__instance);
+            }
+            if (ModSettings.TryGetApplicableObjectResizer(__instance, out ObjectResizerInfo resizer))
+            {
+                resizer.ApplyObjectResizer(__instance);
+            }
+        }
+    }
 }

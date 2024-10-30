@@ -6,8 +6,10 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace FromJianghuENMod
 {
@@ -17,7 +19,9 @@ namespace FromJianghuENMod
         public static ModSettings Instance;
 
         private Dictionary<string, object> GeneralSettings { get; set; }
-        private List<PatcherInfo> Patchers { get; set; } = new List<PatcherInfo>();
+        private List<PatcherInfo> Patchers { get; set; } = new();
+        private List<LayoutGroupChangerInfo> LayoutChangers { get; set; } = new();
+        private List<ObjectResizerInfo> ObjectResizers { get; set; } = new();
         public ModSettings()
         {
             GeneralSettings = new();
@@ -34,13 +38,7 @@ namespace FromJianghuENMod
             string settingsPath = Path.Combine(Paths.PluginPath, "FJSettings.txt");
             if (!Deserialize(settingsPath, out Instance))
             {
-                Debug.Log("NONO DESERIALIZED");
                 Instance = new(settingsPath);
-            }
-            else
-            {
-
-                Debug.Log("happy");
             }
         }
         // Serialize the settings to a file
@@ -113,6 +111,14 @@ namespace FromJianghuENMod
                         if (PatcherInfo.TryCreatePatcherFromString(line, out PatcherInfo patcher))
                             Instance.Patchers.Add(patcher);
                         break;
+                    case "[LayoutGroupChangers]":
+                        if (LayoutGroupChangerInfo.TryCreateLayoutChangerFromString(line, out LayoutGroupChangerInfo layoutChanger))
+                            Instance.LayoutChangers.Add(layoutChanger);
+                        break;
+                    case "[ObjectResizers]":
+                        if (ObjectResizerInfo.TryCreateObjectResizerFromString(line, out ObjectResizerInfo resizer))
+                            Instance.ObjectResizers.Add(resizer);
+                        break;
                 }
             }
 
@@ -141,10 +147,19 @@ namespace FromJianghuENMod
             }
             return default;
         }
+        public static bool TryGetApplicableLayoutGroupChanger(LayoutGroup group, out LayoutGroupChangerInfo changer)
+        {
+            changer = Instance.LayoutChangers.FirstOrDefault(r => r.CanBeApplied(group));
+            return changer != null;
+        }
+        public static bool TryGetApplicableObjectResizer(Component obj, out ObjectResizerInfo resizer)
+        {
+            resizer = Instance.ObjectResizers.FirstOrDefault(r => r.CanBeApplied(obj));
+            return resizer != null;
+        }
     }
 
     // Class to store patcher information
-    [Serializable]
     public class PatcherInfo
     {
         public string ClassName { get; set; }
@@ -159,10 +174,7 @@ namespace FromJianghuENMod
             get
             {
                 if (Parameters == null || Parameters.Count == 0)
-                {
-                    FJDebug.Log($"resolving classname {ClassName}");
                     return AccessTools.Method(Helpers.ResolveType(ClassName), MethodName);
-                }
                 else
                     return AccessTools.Method(Helpers.ResolveType(ClassName), MethodName, Parameters.Select(Helpers.ResolveType).ToArray());
             }
@@ -246,5 +258,164 @@ namespace FromJianghuENMod
             return codes;
         }
         #endregion
+    }
+    public class ObjectResizerInfo
+    {
+        private string FullPath { get; set; }
+        private Vector2 SizeChange { get; set; }
+        public bool CanBeApplied(Component obj) => Helpers.GetFullPathToObject(obj) == FullPath;
+        public static bool TryCreateObjectResizerFromString(string inputString, out ObjectResizerInfo resizer)
+        {
+            resizer = null;
+
+            // Match the input string with the expected format
+            Match match = Regex.Match(inputString, @"(?<fullPath>[\w\/.()]+)\s\=\s(?<sizeChange>.+)");
+            if (match.Success)
+            {
+                string fullPath = match.Groups["fullPath"].Value;
+                string sizeChange = match.Groups["sizeChange"].Value;
+
+                // Parse the size change value
+                string[] sizeParts = sizeChange.Split(';');
+                if (sizeParts.Length == 2 &&
+                    float.TryParse(sizeParts[0], out float width) &&
+                    float.TryParse(sizeParts[1], out float height))
+                {
+                    resizer = new ObjectResizerInfo(fullPath, new Vector2(width, height));
+                }
+            }
+
+            if (resizer == null)
+                FJDebug.LogError($"Failed to create an ObjectResizerInfo object from the input string: {inputString}");
+            else
+                FJDebug.Log($"Created an ObjectResizerInfo successfully! {resizer}");
+
+            return resizer != null;
+        }
+        public ObjectResizerInfo(string fullPath, Vector2 sizeChange)
+        {
+            FullPath = fullPath;
+            SizeChange = sizeChange;
+        }
+        public void ApplyObjectResizer(Component obj)
+        {
+            FJDebug.Log($"Applying size change to {obj.name}");
+            RectTransform rectTransform = obj.GetComponent<RectTransform>();
+            rectTransform.sizeDelta = SizeChange;
+            FJDebug.Log($"Changing size to {rectTransform.sizeDelta}");
+        }
+    }
+    public class LayoutGroupChangerInfo
+    {
+        private string FullPath { get; set; }
+        private Vector2? CellSizeChange { get; set; }
+        private Vector2? SpacingChange { get; set; }
+        public bool CanBeAppliedByName(LayoutGroup group) => Helpers.GetFullPathToObject(group) == FullPath;
+        public bool CanBeAppliedByParameters(LayoutGroup group)
+        {
+            //Cellsize is only applicable to GridLayoutGroup. Everything else is applicable to all LayoutGroups
+            if (CellSizeChange != null && group is not GridLayoutGroup gridLayoutGroup)
+            {
+                return false;
+            }
+            return true;
+        }
+        public bool CanBeApplied(LayoutGroup group) => CanBeAppliedByName(group) && CanBeAppliedByParameters(group);
+
+        public override string ToString()
+        {
+            return $"Path: {FullPath}, CellSizeChange: {CellSizeChange}, SpacingChange: {SpacingChange}";
+        }
+
+        public void ApplyLayoutChanger(LayoutGroup group)
+        {
+            FJDebug.Log($"Applying layout changer to {group.name}");
+
+            if (CellSizeChange.HasValue && group is GridLayoutGroup gridLayoutGroup)
+            {
+                gridLayoutGroup.cellSize = CellSizeChange.Value;
+                FJDebug.Log($"Changing cellsize to {gridLayoutGroup.cellSize}");
+            }
+
+            if (SpacingChange.HasValue)
+            {
+                if (group is HorizontalOrVerticalLayoutGroup layoutGroup)
+                {
+                    layoutGroup.spacing = SpacingChange.Value.x;
+                    FJDebug.Log($"Changing spacing to {layoutGroup.spacing}");
+                }
+                else if (group is GridLayoutGroup gridLayout)
+                {
+                    gridLayout.spacing = SpacingChange.Value;
+                    FJDebug.Log($"Changing spacing to {gridLayout.spacing}");
+                }
+            }
+        }
+
+        public static bool TryCreateLayoutChangerFromString(string inputString, out LayoutGroupChangerInfo resizer)
+        {
+            // Match the input string with the expected format
+            Match match = Regex.Match(inputString, @"(?<fullPath>[\w\/.()]+)\s(?<property>\w+)\s=\s(?<value>.+)");
+            if (match.Success)
+            {
+                string fullPath = match.Groups["fullPath"].Value;
+                string property = match.Groups["property"].Value;
+                string value = match.Groups["value"].Value;
+
+                Vector2? cellSizeChange = null;
+                Vector2? spacingChange = null;
+
+                // Parse the value based on the property name
+                switch (property.ToLower())
+                {
+                    case "cellsize":
+                        string[] cellSizeParts = value.Split(';');
+                        if (cellSizeParts.Length == 2 &&
+                            float.TryParse(cellSizeParts[0], out float cellWidth) &&
+                            float.TryParse(cellSizeParts[1], out float cellHeight))
+                        {
+                            cellSizeChange = new Vector2(cellWidth, cellHeight);
+                        }
+                        break;
+                    case "spacing":
+                        string[] spacing = value.Split(';');
+                        //if spacing is a single value, apply it to both x and y
+                        if (spacing.Length == 1 &&
+                            float.TryParse(spacing[0], out float spacingValue))
+                        {
+                            spacingChange = new(spacingValue, spacingValue);
+                        }
+                        //if spacing is two values, apply them to x and y respectively
+                        else if (spacing.Length == 2 &&
+                            float.TryParse(spacing[0], out float spacingX) &&
+                            float.TryParse(spacing[1], out float spacingY))
+                        {
+                            spacingChange = new(spacingX, spacingY);
+                        }
+                        break;
+                    default:
+                        FJDebug.LogError($"Unsupported property name: {property}");
+                        resizer = null;
+                        return false;
+                }
+
+                // Create the LayoutGroupResizerInfo object
+                resizer = new LayoutGroupChangerInfo(fullPath, cellSizeChange, spacingChange);
+                FJDebug.Log($"Created a LayoutGroupResizerInfo successfully! {resizer}");
+            }
+            else
+            {
+                FJDebug.LogError($"Failed to create a LayoutGroupResizerInfo object from the input string: {inputString}");
+                resizer = null;
+            }
+            return resizer != null;
+        }
+
+        public LayoutGroupChangerInfo(string fullPath, Vector2? cellSizeChange = null, Vector2? spacingChange = null)
+        {
+            FullPath = fullPath;
+            CellSizeChange = cellSizeChange;
+            SpacingChange = spacingChange;
+        }
     }
 }

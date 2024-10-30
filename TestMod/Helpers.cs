@@ -1,10 +1,15 @@
-﻿using BepInEx;
+﻿using BehaviorDesigner.Runtime.Tasks;
+using BepInEx;
 using LitJson;
 using System;
 using System.IO;
 using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
+using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace FromJianghuENMod
 {
@@ -175,11 +180,57 @@ namespace FromJianghuENMod
                     }
                 }
             }
-            if(type != null)
+            if (type != null)
                 FJDebug.Log($"Found type {typeName}! {type}");
             else
                 FJDebug.LogError($"Failed to find type {typeName} after all attempts");
             return type;
+        }
+        public static T TryGetComponentInChildrenDeep<T>(this Component monoBehavior, out T component, bool silent = true) where T : MonoBehaviour
+        {
+            component = monoBehavior.GetComponentInChildren<T>();
+
+            if (!component)
+            {
+                foreach (Transform child in monoBehavior.transform)
+                {
+                    if (child.TryGetComponentInChildrenDeep(out component, true))
+                    {
+                        break;
+                    }
+                }
+            }
+
+            if (!component && !silent)
+            {
+                FJDebug.LogError($"Failed to find {typeof(T)} component in children of {monoBehavior.name}");
+            }
+            return component;
+        }
+        public static T GetComponentInParentsDeep<T>(this MonoBehaviour monoBehavior, bool silent = true) where T : MonoBehaviour
+        {
+            if (monoBehavior.TryGetComponentInParent(out T result))
+            {
+                return result;
+            }
+            else
+            {
+                Transform parent = monoBehavior.transform.parent;
+                while (parent)
+                {
+                    if (parent.TryGetComponent(out result))
+                    {
+                        return result;
+                    }
+                    parent = parent.parent;
+                }
+            }
+
+            if (!result && !silent)
+            {
+                FJDebug.LogError($"Failed to find {typeof(T)} component in parents of {monoBehavior.name}");
+            }
+            return default;
         }
         public static T TryGetComponentInChildren<T>(this MonoBehaviour monoBehavior, out T component, bool silent = true) where T : MonoBehaviour
         {
@@ -189,6 +240,79 @@ namespace FromJianghuENMod
                 FJDebug.LogError($"Failed to find {typeof(T)} component in children of {monoBehavior.name}");
             }
             return component;
+        }
+        public static T TryGetComponentInParent<T>(this MonoBehaviour monoBehavior, out T component, bool silent = true) where T : MonoBehaviour
+        {
+            component = monoBehavior.GetComponentInParent<T>();
+            if (!component && !silent)
+            {
+                FJDebug.LogError($"Failed to find {typeof(T)} component in parent of {monoBehavior.name}");
+            }
+            return component;
+        }
+        public static string GetFullPathToObject(Component component)
+        {
+            if (component == null) return string.Empty;
+
+            StringBuilder objectFullPath = new StringBuilder(component.name);
+            Transform currentParent = component.transform.parent;
+
+            while (currentParent != null)
+            {
+                objectFullPath.Insert(0, $"{currentParent.name}/");
+                currentParent = currentParent.parent;
+            }
+
+            return objectFullPath.ToString();
+        }
+        public static void TryPrintOutInfo(MonoBehaviour uiObject)
+        {
+            if (!uiObject) return;
+
+            if (ModSettings.GetSettingValue<bool>("printUiElementInfo"))
+            {
+                TextMeshProUGUI text = null;
+                if (!ModSettings.GetSettingValue<bool>("printUiElementInfoWithTextOnly") ||
+                     uiObject.TryGetComponentInChildrenDeep(out text))
+                {
+                    RectTransform rectTransform = uiObject.GetComponent<RectTransform>();
+                    Vector2 rectSize = rectTransform.sizeDelta;
+
+                    LayoutGroup layoutGroup = uiObject.GetComponentInParentsDeep<LayoutGroup>();
+
+                    string layoutGroupName = layoutGroup is VerticalLayoutGroup ? "VerticalLayoutGroup" : layoutGroup is HorizontalLayoutGroup ? "HorizontalLayoutGroup" : layoutGroup is GridLayoutGroup ? "GridLayoutGroup" : "None";
+                    string layoutGroupParameters;
+                    string layoutGroupFullPath = GetFullPathToObject(layoutGroup);
+                    if (layoutGroup is HorizontalOrVerticalLayoutGroup group)
+                    {
+                        layoutGroupParameters = $"spacing: {group.spacing}, size {group.GetComponent<RectTransform>().sizeDelta}, control {group.childControlWidth}";
+                    }
+                    else if (layoutGroup is GridLayoutGroup gGroup)
+                    {
+                        layoutGroupParameters = $"spacing: {gGroup.spacing}, size {gGroup.GetComponent<RectTransform>().sizeDelta}, {gGroup.cellSize}";
+                    }
+                    else
+                    {
+                        layoutGroupParameters = "None";
+                    }
+                    string outputString = $"--- {uiObject.name} INFO ---\n" +
+                                          $"Full Path: {GetFullPathToObject(uiObject)}\n" +
+                                          $"Size: {rectSize}\n" +
+                                          $"Layout Group: {layoutGroupName}\n" +
+                                          $"Layout Group Full Path: {layoutGroupFullPath}\n" +
+                                          $"Layout Group Parameters: {layoutGroupParameters}\n";
+
+                    if (text)
+                    {
+                        outputString += $"Text Child name: {text.name}\n" +
+                                        $"Text Child full path: {GetFullPathToObject(text)}\n" +
+                                        $"Text: {text.text}\n";
+                    }
+                    outputString += "--- END OF INFO ---";
+
+                    Debug.Log(outputString);
+                }
+            }
         }
     }
     public static class FJDebug
