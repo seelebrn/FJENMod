@@ -199,7 +199,6 @@
     <Compile Include="Dump.cs" />
     <Compile Include="Helpers.cs" />
     <Compile Include="ModSettings.cs" />
-    <Compile Include="Patchers.cs" />
     <Compile Include="Postfixes.cs" />
     <Compile Include="Prefixes.cs" />
     <Compile Include="TestMod.cs" />

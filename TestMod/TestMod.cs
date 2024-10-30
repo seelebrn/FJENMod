@@ -24,7 +24,6 @@ namespace FromJianghuENMod
         private static FileSystemWatcher watcher;
 
         public static ModSettings settings;
-        public static Patchers patchers;
 
         public static HashSet<string> untranslated = new();
         public static HashSet<string> obsolete = new();
@@ -79,7 +78,6 @@ namespace FromJianghuENMod
             Logger.LogInfo("Hello World ! Welcome to Cadenza's plugin !");
             harmony = new Harmony("Cadenza.IWOL.EnMod");
             InitializeSettings();
-            InitializePatchers();
             harmony.PatchAll();
         }
 
@@ -88,34 +86,15 @@ namespace FromJianghuENMod
             harmony?.UnpatchSelf();
         }
 
-
-        private void InitializePatchers()
-        {
-            string patchersPath = Path.Combine(Paths.PluginPath, "FJPatchers.txt");
-            if (File.Exists(patchersPath))
-            {
-                patchers = Helpers.Deserialize<Patchers>(patchersPath);
-                patchers.PatchAll();
-            }
-            else
-            {
-                patchers = new Patchers();
-                patchers.patchers.Add(new TranspilerPatcher("test", "testmeh", new string[] { "aa", "ss" }));
-                Helpers.Serialize(patchers, patchersPath);
-            }
-        }
         private void InitializeSettings()
         {
             string settingsPath = Path.Combine(Paths.PluginPath, "FJSettings.txt");
-            if (File.Exists(settingsPath))
+            if (!ModSettings.Deserialize(settingsPath, out settings))
             {
-                settings = Helpers.Deserialize<ModSettings>(settingsPath);
+                settings = new(settingsPath);
             }
-            else
-            {
-                settings = new ModSettings();
-                Helpers.Serialize(settings, settingsPath);
-            }
+
+            settings.ApplySettings();
         }
 
         //------------------------------------------------------------------------------------------
