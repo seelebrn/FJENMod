@@ -66,35 +66,7 @@ namespace FromJianghuENMod
     {
         static void Postfix(JsonMapper __instance, ref object __result)
         {
-            try
-            {
-                string result = __result.ToString().Replace("\r", "\\r").Replace("\n", "\\n").Replace("\"", "\\\"");
-
-                if (Helpers.IsChinese(result) && FromJianghuENMod.translationDict.ContainsKey(result) && __result != null && result != "")
-                {
-                    try
-                    {
-                        FromJianghuENMod.matched.Add(result);
-                        //Debug.Log("Trying to Translate from Json : " + result);
-                        __result = FromJianghuENMod.translationDict[result];
-                        //Debug.Log("Replaced String : " + __result);
-                    }
-                    catch
-                    {
-                    }
-                }
-                else
-                {
-                    if (Helpers.IsChinese(result) && !string.IsNullOrEmpty(result) && !FromJianghuENMod.translationDict.ContainsKey(result))
-                    {
-                        FromJianghuENMod.untranslated.Add(result);
-                    }
-                }
-            }
-            catch
-            {
-                //Debug.Log("huh ?");
-            }
+            JSONPostfixProcessor.ProcessJsonResult(ref __result);
         }
     }
 
@@ -103,36 +75,7 @@ namespace FromJianghuENMod
     {
         static void Postfix(JsonMapper __instance, ref object __result)
         {
-            try
-            {
-                string result = __result.ToString().Replace("\r", "\\r").Replace("\n", "\\n").Replace("\"", "\\\"");
-
-                if (Helpers.IsChinese(result) && FromJianghuENMod.translationDict.ContainsKey(result) && __result != null && __result != "")
-                {
-                    try
-                    {
-                        FromJianghuENMod.matched.Add(result);
-                        //Debug.Log("Trying to Translate from Json : " + result);
-                        __result = FromJianghuENMod.translationDict[result];
-                        //Debug.Log("Replaced String : " + __result);
-                    }
-
-                    catch
-                    {
-                    }
-                }
-                else
-                {
-                    if (Helpers.IsChinese(result) && __result != null && __result != "" && !FromJianghuENMod.translationDict.ContainsKey(result))
-                    {
-                        FromJianghuENMod.untranslated.Add(result);
-                    }
-                }
-            }
-            catch
-            {
-                //Debug.Log("huh ?");
-            }
+            JSONPostfixProcessor.ProcessJsonResult(ref __result);
         }
     }
 
@@ -141,71 +84,36 @@ namespace FromJianghuENMod
     {
         static void Postfix(JsonMapper __instance, ref object __result)
         {
-            try
-            {
-                string result = __result.ToString().Replace("\r", "\\r").Replace("\n", "\\n").Replace("\"", "\\\"");
-
-                if (Helpers.IsChinese(result) && FromJianghuENMod.translationDict.ContainsKey(result) && __result != null && __result != "")
-                {
-                    try
-                    {
-                        FromJianghuENMod.matched.Add(result);
-                        //Debug.Log("Trying to Translate from Json : " + result);
-                        __result = FromJianghuENMod.translationDict[result];
-                        //Debug.Log("Replaced String : " + __result);
-                    }
-                    catch
-                    {
-                    }
-                }
-                else
-                {
-                    if (Helpers.IsChinese(result) && __result != null && __result != "" && !FromJianghuENMod.translationDict.ContainsKey(result))
-                    {
-                        FromJianghuENMod.untranslated.Add(result);
-                    }
-
-                }
-            }
-            catch
-            {
-            }
+            JSONPostfixProcessor.ProcessJsonResult(ref __result);
         }
     }
+
     [HarmonyPatch(typeof(JsonMapper), "ReadValue", new[] { typeof(WrapperFactory), typeof(JsonStreamReader) })]
     static class JSONObject_Patch4
     {
         static void Postfix(JsonMapper __instance, ref object __result)
         {
-            try
+            JSONPostfixProcessor.ProcessJsonResult(ref __result);
+        }
+    }
+    public class JSONPostfixProcessor
+    {
+        public static void ProcessJsonResult(ref object __result)
+        {
+            if (__result is string result && !string.IsNullOrEmpty(result))
             {
-                string result = __result.ToString().Replace("\r", "\\r").Replace("\n", "\\n").Replace("\"", "\\\"");
-
-                if (Helpers.IsChinese(result) && FromJianghuENMod.translationDict.ContainsKey(result) && __result != null && __result != "")
+                if (FromJianghuENMod.TryTranslatingString(result, out string translated))
                 {
                     try
                     {
                         FromJianghuENMod.matched.Add(result);
-                        //Debug.Log("Trying to Translate from Json : " + result);
-                        __result = FromJianghuENMod.translationDict[result];
-                        //Debug.Log("Replaced String : " + __result);
+                        __result = translated;
                     }
-                    catch
+                    catch (Exception e)
                     {
+                        Debug.LogError($"Error translating JSON : {e.Message}");
                     }
                 }
-                else
-                {
-                    if (Helpers.IsChinese(result) && __result != null && __result != "" && !FromJianghuENMod.translationDict.ContainsKey(result))
-                    {
-                        FromJianghuENMod.untranslated.Add(result);
-                    }
-                }
-            }
-
-            catch
-            {
-                //Debug.Log("huh ?");
             }
         }
     }

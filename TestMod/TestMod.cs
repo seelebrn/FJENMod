@@ -21,6 +21,8 @@ namespace FromJianghuENMod
         public static Dictionary<string, string> UIText = new();
         public static Dictionary<string, string> translationDict;
 
+        private StreamWriter untranslatedWriter;
+
         private static FileSystemWatcher watcher;
 
         public static ModSettings settings;
@@ -84,8 +86,8 @@ namespace FromJianghuENMod
         public void OnDestroy()
         {
             harmony?.UnpatchSelf();
+            untranslatedWriter?.Close();
         }
-
         private void InitializeSettings()
         {
             string settingsPath = Path.Combine(Paths.PluginPath, "FJSettings.txt");
@@ -97,6 +99,35 @@ namespace FromJianghuENMod
             settings.ApplySettings();
         }
 
+        /// <summary>
+        /// Tries to get the translation for a given key
+        /// </summary>
+        /// <param name="key">Original string</param>
+        /// <param name="translatedString">Translation fetched from the dictionary</param>
+        /// <returns>True if the key is chinese and has been found in the dictionary</returns>
+        public static bool TryTranslatingString(string key, out string translatedString)
+        {
+            key = key.Replace("\r", "\\r").Replace("\n", "\\n").Replace("\"", "\\\"");
+
+            if (!Helpers.IsChinese(key))
+            {
+                translatedString = key;
+            }
+            else if (translationDict.TryGetValue(key, out string value))
+            {
+                translatedString = value;
+            }
+            else
+            {
+                if (!Helpers.IsChineseOnly(key) && untranslated.Add(key))
+                {
+                    Debug.Log($"Failed to find translation for key: {key}. Putting it in untranslated list.");
+                }
+                translatedString = key;
+            }
+            return translatedString != key;
+        }
+
         //------------------------------------------------------------------------------------------
         private void Update()
         {
@@ -104,6 +135,26 @@ namespace FromJianghuENMod
             if (Input.GetKeyUp(KeyCode.F2)) UpdateTranslations();
             if (Input.GetKeyUp(KeyCode.F3)) ScanAndDumpAssets();
         }
+
+        private void UpdateUntranslatedTextFile()
+        {
+            string pathToUntranslated = Path.Combine(Paths.PluginPath, "untranslated.txt");
+
+            untranslatedWriter ??= new(pathToUntranslated, append: true);
+
+            foreach (string text in untranslated)
+            {
+                if (Helpers.IsChinese(text) &&
+                    !string.IsNullOrEmpty(text) &&
+                    !text.DoesMatchAny(@"\r", @"\n", "\r\n"))
+                {
+                    untranslatedWriter.WriteLine(text);
+                }
+            }
+
+            untranslatedWriter.Flush();
+        }
+
         private void ExportStrings()
         {
             Debug.Log("Cleaning a few things...");

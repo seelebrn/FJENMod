@@ -50,16 +50,24 @@ namespace FromJianghuENMod
         // This method will modify the text value before it's stored in m_text
         public static string ModifyTextValueAndSetWrapping(string originalValue, object instance)
         {
-            if (instance == null || string.IsNullOrEmpty(originalValue) || !originalValue.Contains("!Wrapping!")) { return originalValue; }
+            if (instance == null || string.IsNullOrEmpty(originalValue)) return originalValue;
+
+            string modifiedValue = originalValue;
+
+            //Try translating if it's pure Chinese
+            if (Helpers.IsChineseOnly(modifiedValue) && FromJianghuENMod.TryTranslatingString(originalValue, out string translatedValue))
+            {
+                modifiedValue = translatedValue;
+            }
 
             //Disable wrapping if all conditions are satisfied
-            if (instance is TextMeshProUGUI textMeshProUGUI)
+            if (instance is TextMeshProUGUI textMeshProUGUI && modifiedValue.Contains("!Wrapping!"))
             {
                 textMeshProUGUI.textWrappingMode = TextWrappingModes.NoWrap;
+                modifiedValue = modifiedValue.Replace("!Wrapping!", "");
             }
 
             // Modify the value as needed
-            string modifiedValue = originalValue.Replace("!Wrapping!", "");
             return modifiedValue;
         }
     }
