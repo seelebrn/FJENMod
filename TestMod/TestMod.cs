@@ -1,5 +1,6 @@
 ﻿using BepInEx;
 using HarmonyLib;
+using LitJson;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -19,17 +20,37 @@ namespace FromJianghuENMod
         public const string pluginVersion = "0.6";
         public static Dictionary<string, string> UIText = new();
         public static Dictionary<string, string> translationDict;
+
+        private static FileSystemWatcher watcher;
+
+        public static ModSettings settings;
+        public static Patchers patchers;
+
         public static HashSet<string> untranslated = new();
         public static HashSet<string> obsolete = new();
         public static HashSet<string> matched = new();
         Dictionary<string, string> keystoupdate = new();
-        public static Dictionary<string, string> FileToDictionary(string dir)
+        public static void InitializeTranslationDictionary(string dir)
         {
-            Debug.Log(Paths.PluginPath);
+            string filePath = Path.Combine(Paths.PluginPath, "Translations", dir);
+            ReloadDictionary(filePath);
 
-            Dictionary<string, string> dict = new();
+            if (watcher == null)
+            {
+                watcher = new FileSystemWatcher(Path.GetDirectoryName(filePath), Path.GetFileName(filePath))
+                {
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size
+                };
 
-            IEnumerable<string> lines = File.ReadLines(Path.Combine(Paths.PluginPath, "Translations", dir));
+                watcher.Changed += (sender, e) => ReloadDictionary(filePath);
+                watcher.EnableRaisingEvents = true;
+            }
+        }
+        private static void ReloadDictionary(string filePath)
+        {
+            Dictionary<string, string> newDict = new();
+
+            IEnumerable<string> lines = File.ReadLines(filePath);
 
             foreach (string line in lines)
             {
@@ -38,24 +59,27 @@ namespace FromJianghuENMod
                 {
                     KeyValuePair<string, string> pair = new(Regex.Replace(arr[0], @"\t|\n|\r", ""), arr[1]);
 
-                    if (!dict.ContainsKey(pair.Key))
-                        dict.Add(pair.Key, pair.Value);
+                    if (!newDict.ContainsKey(pair.Key))
+                        newDict.Add(pair.Key, pair.Value);
                     else
-                        Debug.Log($"Found a duplicated line while parsing {dir}: {pair.Key}");
+                        Debug.Log($"Found a duplicated line while parsing {filePath}: {pair.Key}");
                 }
             }
 
-            return dict;
+            Debug.Log("Dictionary reloaded !");
 
+            translationDict = newDict;
         }
 
-        private static Harmony harmony;
+        public static Harmony harmony;
         public void Awake()
         {
             Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
-            translationDict = FileToDictionary("KV.txt");
+            InitializeTranslationDictionary("KV.txt");
             Logger.LogInfo("Hello World ! Welcome to Cadenza's plugin !");
             harmony = new Harmony("Cadenza.IWOL.EnMod");
+            InitializeSettings();
+            InitializePatchers();
             harmony.PatchAll();
         }
 
@@ -63,6 +87,37 @@ namespace FromJianghuENMod
         {
             harmony?.UnpatchSelf();
         }
+
+
+        private void InitializePatchers()
+        {
+            string patchersPath = Path.Combine(Paths.PluginPath, "FJPatchers.txt");
+            if (File.Exists(patchersPath))
+            {
+                patchers = Helpers.Deserialize<Patchers>(patchersPath);
+                patchers.PatchAll();
+            }
+            else
+            {
+                patchers = new Patchers();
+                patchers.patchers.Add(new TranspilerPatcher("test", "testmeh", new string[] { "aa", "ss" }));
+                Helpers.Serialize(patchers, patchersPath);
+            }
+        }
+        private void InitializeSettings()
+        {
+            string settingsPath = Path.Combine(Paths.PluginPath, "FJSettings.txt");
+            if (File.Exists(settingsPath))
+            {
+                settings = Helpers.Deserialize<ModSettings>(settingsPath);
+            }
+            else
+            {
+                settings = new ModSettings();
+                Helpers.Serialize(settings, settingsPath);
+            }
+        }
+
         //------------------------------------------------------------------------------------------
         private void Update()
         {
@@ -240,6 +295,7 @@ namespace FromJianghuENMod
                     }
                 }
             }
-        }       
+        }
     }
+
 }

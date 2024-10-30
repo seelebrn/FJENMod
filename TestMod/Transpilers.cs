@@ -16,7 +16,7 @@ namespace FromJianghuENMod
         static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             // init our IL codes of current method
-            List<CodeInstruction> codes = new List<CodeInstruction>(instructions);
+            List<CodeInstruction> codes = new(instructions);
             for (int i = 0; i < codes.Count - 1; i++)
             {
                 /*Debug.Log("InitialALLOperand = " + codes[i].operand);*/
@@ -48,7 +48,7 @@ namespace FromJianghuENMod
         static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             // init our IL codes of current method
-            List<CodeInstruction> codes = new List<CodeInstruction>(instructions);
+            List<CodeInstruction> codes = new(instructions);
             for (int i = 0; i < codes.Count - 1; i++)
             {
                 /*Debug.Log("InitialALLOperand = " + codes[i].operand);*/
@@ -128,7 +128,7 @@ namespace FromJianghuENMod
         static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             // init our IL codes of current method
-            List<CodeInstruction> codes = new List<CodeInstruction>(instructions);
+            List<CodeInstruction> codes = new(instructions);
             for (int i = 0; i < codes.Count - 1; i++)
             {
                 //                /*Debug.Log("InitialALLOperand = " + codes[i].operand);*/
@@ -161,7 +161,7 @@ namespace FromJianghuENMod
         static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             // init our IL codes of current method
-            List<CodeInstruction> codes = new List<CodeInstruction>(instructions);
+            List<CodeInstruction> codes = new(instructions);
             for (int i = 0; i < codes.Count - 1; i++)
             {
                 //                /*Debug.Log("InitialALLOperand = " + codes[i].operand);*/
@@ -187,38 +187,38 @@ namespace FromJianghuENMod
         }
     }
 
-    [HarmonyPatch(typeof(PanelSaveArchive), "OnSaveBtn")]
-    static class PanelSaveArchive_OnSaveBtn
+    //[HarmonyPatch(typeof(PanelSaveArchive), "OnSaveBtn")]
+    //static class PanelSaveArchive_OnSaveBtn
 
-    {
-        static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
-        {
-            // init our IL codes of current method
-            List<CodeInstruction> codes = new List<CodeInstruction>(instructions);
-            for (int i = 0; i < codes.Count - 1; i++)
-            {
-                //                /*Debug.Log("InitialALLOperand = " + codes[i].operand);*/
-                // find location of "nMods" string in parameters
-                if (codes[i].opcode == OpCodes.Ldstr && codes[i].operand.ToString() == "将覆盖存档<color=#ff0000>Save{0}</color>，是否继续？")
-                {
-
-
-                    //                    Debug.Log("ConditionalOperand = " + codes[i].operand + "  i = " + i);
-                    codes[i].operand = "<color=#ff0000>Save{0}</color> will be overwritten，continue ？";
-                    //                    Debug.Log("ChangedOperand = " + codes[i].operand + "  i = " + i);
+    //{
+    //    static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+    //    {
+    //        // init our IL codes of current method
+    //        List<CodeInstruction> codes = new(instructions);
+    //        for (int i = 0; i < codes.Count - 1; i++)
+    //        {
+    //            //                /*Debug.Log("InitialALLOperand = " + codes[i].operand);*/
+    //            // find location of "nMods" string in parameters
+    //            if (codes[i].opcode == OpCodes.Ldstr && codes[i].operand.ToString() == "将覆盖存档<color=#ff0000>Save{0}</color>，是否继续？")
+    //            {
 
 
-                    //Debug.Log("Edit Done !" + dict[codes[i].operand.ToString()]);
+    //                //                    Debug.Log("ConditionalOperand = " + codes[i].operand + "  i = " + i);
+    //                codes[i].operand = "<color=#ff0000>Save{0}</color> will be overwritten，continue ？";
+    //                //                    Debug.Log("ChangedOperand = " + codes[i].operand + "  i = " + i);
 
-                }
-                else
-                {
-                    //                    Debug.Log("None");
-                }
-            }
-            return codes.AsEnumerable();
-        }
-    }
+
+    //                //Debug.Log("Edit Done !" + dict[codes[i].operand.ToString()]);
+
+    //            }
+    //            else
+    //            {
+    //                //                    Debug.Log("None");
+    //            }
+    //        }
+    //        return codes.AsEnumerable();
+    //    }
+    //}
 
     [HarmonyPatch(typeof(PanelMapPopMenu), "OnBuildBtn")]
     static class PanelMapPopMenue_OnBuildBtn
@@ -226,7 +226,7 @@ namespace FromJianghuENMod
         static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             // init our IL codes of current method
-            List<CodeInstruction> codes = new List<CodeInstruction>(instructions);
+            List<CodeInstruction> codes = new(instructions);
             for (int i = 0; i < codes.Count - 1; i++)
             {
                 /*Debug.Log("InitialALLOperand = " + codes[i].operand);*/
@@ -258,7 +258,7 @@ namespace FromJianghuENMod
         static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             // init our IL codes of current method
-            List<CodeInstruction> codes = new List<CodeInstruction>(instructions);
+            List<CodeInstruction> codes = new(instructions);
             for (int i = 0; i < codes.Count - 1; i++)
             {
                 /*Debug.Log("InitialALLOperand = " + codes[i].operand);*/
@@ -302,7 +302,7 @@ namespace FromJianghuENMod
         static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             // init our IL codes of current method
-            List<CodeInstruction> codes = new List<CodeInstruction>(instructions);
+            List<CodeInstruction> codes = new(instructions);
             for (int i = 0; i < codes.Count - 1; i++)
             {
                 /*Debug.Log("InitialALLOperand = " + codes[i].operand);*/
@@ -335,27 +335,12 @@ namespace FromJianghuENMod
         static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             // init our IL codes of current method
-            List<CodeInstruction> codes = new List<CodeInstruction>(instructions);
+            List<CodeInstruction> codes = new(instructions);
             for (int i = 0; i < codes.Count - 1; i++)
             {
-                /*Debug.Log("InitialALLOperand = " + codes[i].operand);*/
-                // find location of "nMods" string in parameters
                 if (codes[i].opcode == OpCodes.Ldstr && codes[i].operand.ToString() == "<color=#808080>·<indent=1em>突破瓶颈{0}：{1}</indent></color>")
                 {
-
-
-                    //                   Debug.Log("ConditionalOperand = " + codes[i].operand + "  i = " + i);
                     codes[i].operand = "<color=#808080>{1}（Breakthrough Bottleneck {0}）</color>";
-                    //                    Debug.Log("ChangedOperand = " + codes[i].operand + "  i = " + i);
-
-
-                    //Debug.Log("Edit Done !" + dict[codes[i].operand.ToString()]);
-
-                }
-
-                else
-                {
-                    //Debug.Log("None");
                 }
             }
             return codes.AsEnumerable();

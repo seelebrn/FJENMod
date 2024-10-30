@@ -215,7 +215,7 @@ namespace FromJianghuENMod
     {
         static void Postfix(TimeModel __instance, ref string __result)
         {
-            TimeSpan timeSpan = new TimeSpan(Convert.ToInt64(SingletonMonoBehaviour<TimeModel>.Instance.mUserData.mGameNow * 10000000.0));
+            TimeSpan timeSpan = new(Convert.ToInt64(SingletonMonoBehaviour<TimeModel>.Instance.mUserData.mGameNow * 10000000.0));
             //Debug.Log("Chinese Time : " + __instance.mUserData.Hours + " // " + __instance.mUserData.Quarters);
             //Debug.Log("Other Time : " + __instance.GameDateTime.Hours + " // " + timeSpan.Minutes);
             __result = $"{__instance.GameDateTime.Hours}h, {timeSpan.Minutes}m";
