@@ -1,7 +1,5 @@
 ﻿using HarmonyLib;
 using TMPro;
-using UIWidgets.Examples;
-using UnityEngine;
 using UnityEngine.UI;
 
 namespace FromJianghuENMod
@@ -42,6 +40,10 @@ namespace FromJianghuENMod
         static void Prefix(TextMeshProUGUI __instance)
         {
             Helpers.TryPrintOutInfo(__instance);
+            if (ModSettings.TryGetApplicableObjectResizer(__instance, out ObjectResizerInfo resizer))
+            {
+                resizer.ApplyObjectResizer(__instance);
+            }
         }
     }
     [HarmonyPatch(typeof(Image), "OnEnable")]
@@ -60,16 +62,32 @@ namespace FromJianghuENMod
         }
     }
     [HarmonyPatch(typeof(LayoutGroup), "OnEnable")]
-    static class LayoutGroup_Awake
+    static class LayoutGroup_Enable
     {
         static void Postfix(LayoutGroup __instance)
         {
             if (!__instance) return;
 
+            Helpers.TryPrintOutInfo(__instance);
+
             if (ModSettings.TryGetApplicableLayoutGroupChanger(__instance, out LayoutGroupChangerInfo layoutChanger))
             {
                 layoutChanger.ApplyLayoutChanger(__instance);
             }
+            if (ModSettings.TryGetApplicableObjectResizer(__instance, out ObjectResizerInfo resizer))
+            {
+                resizer.ApplyObjectResizer(__instance);
+            }
+        }
+    }    [HarmonyPatch(typeof(Text), "OnEnable")]
+    static class Text_OnEnable
+    {
+        static void Postfix(LayoutGroup __instance)
+        {
+            if (!__instance) return;
+
+            Helpers.TryPrintOutInfo(__instance);
+      
             if (ModSettings.TryGetApplicableObjectResizer(__instance, out ObjectResizerInfo resizer))
             {
                 resizer.ApplyObjectResizer(__instance);

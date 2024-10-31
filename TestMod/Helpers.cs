@@ -1,6 +1,5 @@
 ﻿using BehaviorDesigner.Runtime.Tasks;
 using BepInEx;
-using LitJson;
 using System;
 using System.IO;
 using System.Reflection;
@@ -44,24 +43,7 @@ namespace FromJianghuENMod
             }
             return false;
         }
-        public static void Serialize<T>(T obj, string path)
-        {
-            if (obj == null)
-            {
-                return;
-            }
-            string json = JsonMapper.ToJson(obj);
-            File.WriteAllText(path, json);
-        }
-        public static T Deserialize<T>(string path)
-        {
-            if (!File.Exists(path))
-            {
-                return default;
-            }
-            string json = File.ReadAllText(path);
-            return JsonMapper.ToObject<T>(json);
-        }
+
         public static bool FullyQualifyTypes(string typeName, out string qualifiedTypeName)
         {
             qualifiedTypeName = typeName.ToLower() switch
@@ -143,7 +125,7 @@ namespace FromJianghuENMod
                 FJDebug.Log($"Couldn't find type {typeName} in default assembly, trying Assembly-Csharp");
 
                 Assembly assembly = null;
-                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
                 {
                     if (asm.GetName().Name == "Assembly-CSharp")
                     {

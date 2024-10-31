@@ -1,6 +1,6 @@
-﻿using BepInEx;
+﻿using BehaviorDesigner.Runtime.Tasks.Unity.UnityString;
+using BepInEx;
 using HarmonyLib;
-using LitJson;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -21,53 +21,46 @@ namespace FromJianghuENMod
         public static Dictionary<string, string> UIText = new();
         public static Dictionary<string, string> translationDict;
 
-        private static StreamWriter untranslatedWriter;
+        private float lastUntranslatedUpdate = 0;
+        private float UntranslatedUpdateInterval => (float)ModSettings.GetSettingValue<int>("unloadUntranslatedStringsInterval");
 
-        private static FileSystemWatcher watcher;
-
-        public static HashSet<string> untranslated = new();
+        public static HashSet<string> untranslatedLastLoaded = new();
+        public static HashSet<string> untranslatedCurrent = new();
         public static HashSet<string> obsolete = new();
         public static HashSet<string> matched = new();
-        Dictionary<string, string> keystoupdate = new();
-        public static void InitializeTranslationDictionary(string dir)
+
+        public static string KVPath => Path.Combine(Paths.PluginPath, "Translations", "KV.txt");
+        public static string NewKVPath => Path.Combine(Paths.PluginPath, "NewKV.txt");
+        public static string UntranslatedPath => Path.Combine(Paths.PluginPath, "untranslated.txt");
+        public static string ObsoletePath => Path.Combine(Paths.PluginPath, "obsolete.txt");
+
+        public static void InitializeTranslationDictionary()
         {
-            string filePath = Path.Combine(Paths.PluginPath, "Translations", dir);
-            ReloadDictionary(filePath);
-
-            if (watcher == null)
-            {
-                watcher = new FileSystemWatcher(Path.GetDirectoryName(filePath), Path.GetFileName(filePath))
-                {
-                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size
-                };
-
-                watcher.Changed += (sender, e) => ReloadDictionary(filePath);
-                watcher.EnableRaisingEvents = true;
-            }
+            ReloadDictionary();
         }
-        private static void ReloadDictionary(string filePath)
+        private static void ReloadDictionary()
         {
-            Dictionary<string, string> newDict = new();
+            translationDict = new();
 
-            IEnumerable<string> lines = File.ReadLines(filePath);
-
-            foreach (string line in lines)
+            foreach (string line in File.ReadLines(KVPath))
             {
-                string[] arr = line.Split('¤');
-                if (arr[0] != arr[1])
-                {
-                    KeyValuePair<string, string> pair = new(Regex.Replace(arr[0], @"\t|\n|\r", ""), arr[1]);
+                if (string.IsNullOrEmpty(line)) continue;
 
-                    if (!newDict.ContainsKey(pair.Key))
-                        newDict.Add(pair.Key, pair.Value);
-                    else
-                        FJDebug.Log($"Found a duplicated line while parsing {filePath}: {pair.Key}");
+                string[] arr = line.Split('¤');
+                if (arr.Length < 2 || arr[0] == arr[1]) continue;
+
+                string key = Regex.Replace(arr[0], @"\t|\n|\r", "");
+                if (!translationDict.ContainsKey(key))
+                {
+                    translationDict[key] = arr[1];
+                }
+                else
+                {
+                    FJDebug.Log($"Found a duplicated line while parsing KV.txt: {key}");
                 }
             }
 
             FJDebug.Log("Dictionary reloaded !");
-
-            translationDict = newDict;
         }
 
         public static Harmony harmony;
@@ -76,7 +69,7 @@ namespace FromJianghuENMod
             harmony = new Harmony("Cadenza.IWOL.EnMod");
             Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
             ModSettings.Initialize();
-            InitializeTranslationDictionary("KV.txt");
+            InitializeTranslationDictionary();
             ModSettings.ApplySettings();
             Logger.LogInfo("Hello World ! Welcome to Cadenza's plugin !");
             harmony.PatchAll();
@@ -85,7 +78,6 @@ namespace FromJianghuENMod
         public void OnDestroy()
         {
             harmony?.UnpatchSelf();
-            untranslatedWriter?.Close();
         }
 
         /// <summary>
@@ -103,14 +95,10 @@ namespace FromJianghuENMod
             {
                 translatedString = value;
             }
-            else if (ModSettings.GetSettingValue<bool>("unloadUntranslatedStrings"))
+            else if (Helpers.IsChineseOnly(key) && untranslatedCurrent.Add(key))
             {
-                if (Helpers.IsChineseOnly(key) && untranslated.Add(key))
-                {
-                    FJDebug.Log($"Failed to find translation for key: {key}. Putting it in untranslated list.");
-                    untranslated.Add(key);
-                    UpdateUntranslatedTextFile();
-                }
+                FJDebug.Log($"Failed to find translation for key: {key}. Putting it in untranslated list.");
+
             }
 
             return translatedString != key;
@@ -119,43 +107,55 @@ namespace FromJianghuENMod
         //------------------------------------------------------------------------------------------
         private void Update()
         {
-            if (Input.GetKeyUp(KeyCode.F1)) ExportStrings();
-            if (Input.GetKeyUp(KeyCode.F2)) UpdateTranslations();
-            if (Input.GetKeyUp(KeyCode.F3)) ScanAndDumpAssets();
+            if (Input.GetKey(KeyCode.F1)) ExportStrings();
+            else if (Input.GetKey(KeyCode.F2)) UpdateTranslations();
+            else if (Input.GetKey(KeyCode.F3)) ScanAndDumpAssets();
+            else if (Input.GetKey(KeyCode.F4)) ReloadModifiersAndApply();
+
+            if (Time.time - lastUntranslatedUpdate >= UntranslatedUpdateInterval)
+                UpdateUntranslatedTextFile();
         }
 
-        private static void UpdateUntranslatedTextFile()
+
+        private void UpdateUntranslatedTextFile()
         {
-            string pathToUntranslated = Path.Combine(Paths.PluginPath, "untranslated.txt");
-
-            untranslatedWriter ??= new(pathToUntranslated, append: true);
-
-            foreach (string text in untranslated)
+            if (ModSettings.GetSettingValue<bool>("unloadUntranslatedStrings"))
             {
-                if (Helpers.IsChinese(text) &&
-                    !string.IsNullOrEmpty(text) &&
-                    !text.DoesMatchAny(@"\r", @"\n", "\r\n"))
-                {
-                    untranslatedWriter.WriteLine(text);
-                }
-            }
+                List<string> newStrings = untranslatedCurrent.Except(untranslatedLastLoaded).ToList();
 
-            untranslatedWriter.Flush();
+                if (newStrings.Count > 0)
+                {
+                    if (!File.Exists(UntranslatedPath))
+                        File.Create(UntranslatedPath).Dispose();
+
+                    FJDebug.Log($"New untranslated strings detected: {newStrings.Count}. Appending to untranslated.txt");
+
+                    using (StreamWriter untranslatedWriter = new(UntranslatedPath, append: true))
+                    {
+                        foreach (string s in newStrings)
+                        {
+                            untranslatedWriter.WriteLine(s);
+                        }
+                    }
+                    untranslatedLastLoaded = new HashSet<string>(untranslatedCurrent);
+                }
+                lastUntranslatedUpdate = Time.time;
+            }
         }
 
         private void ExportStrings()
         {
             FJDebug.Log("Cleaning a few things...");
 
-            Helpers.DeleteFileIfExists(Path.Combine(Paths.PluginPath, "untranslated.txt"));
-            Helpers.DeleteFileIfExists(Path.Combine(Paths.PluginPath, "obsolete.txt"));
-            Helpers.DeleteFileIfExists(Path.Combine(Paths.PluginPath, "NewKV.txt"));
+            Helpers.DeleteFileIfExists(UntranslatedPath);
+            Helpers.DeleteFileIfExists(ObsoletePath);
+            Helpers.DeleteFileIfExists(KVPath);
 
             FJDebug.Log("Exporting untranslated strings...");
-            string untranslatedPath = Path.Combine(Paths.PluginPath, "untranslated.txt");
-            using (StreamWriter untranslatedWriter = new(untranslatedPath, append: true))
+
+            using (StreamWriter untranslatedWriter = new(UntranslatedPath, append: true))
             {
-                foreach (string text in untranslated.Distinct())
+                foreach (string text in untranslatedCurrent)
                 {
                     if (Helpers.IsChinese(text) && !string.IsNullOrEmpty(text) && !text.DoesMatchAny(@"\r", @"\n", "\r\n"))
                     {
@@ -166,12 +166,11 @@ namespace FromJianghuENMod
             FJDebug.Log("Successfully (I hope) exported untranslated strings... !");
 
             FJDebug.Log("Exporting obsolete strings...");
-            string obsoletePath = Path.Combine(Paths.PluginPath, "obsolete.txt");
-            using (StreamWriter obsoleteWriter = new(obsoletePath, append: true))
+            using (StreamWriter obsoleteWriter = new(ObsoletePath, append: true))
             {
                 foreach (KeyValuePair<string, string> kvp in translationDict)
                 {
-                    if (!matched.Contains(kvp.Key) && !untranslated.Contains(kvp.Key) && !string.IsNullOrEmpty(kvp.Key))
+                    if (!string.IsNullOrEmpty(kvp.Key) && !matched.Contains(kvp.Key) && !untranslatedCurrent.Contains(kvp.Key))
                     {
                         obsoleteWriter.WriteLine($"{kvp.Key}¤{kvp.Value}");
                     }
@@ -180,12 +179,11 @@ namespace FromJianghuENMod
             FJDebug.Log("Successfully (I hope) exported obsolete strings... !");
 
             FJDebug.Log("Creating your new KV...! ");
-            string newKVPath = Path.Combine(Paths.PluginPath, "NewKV.txt");
-            using (StreamWriter newKVWriter = new(newKVPath, append: true))
+            using (StreamWriter newKVWriter = new(NewKVPath, append: true))
             {
                 foreach (string matchedline in matched.Distinct())
                 {
-                    if (translationDict.TryGetValue(matchedline, out string value) && !string.IsNullOrEmpty(matchedline) && !matchedline.DoesMatchAny(@"\r", @"\n", "\r\n"))
+                    if (!string.IsNullOrEmpty(matchedline) && translationDict.TryGetValue(matchedline, out string value) && !!matchedline.DoesMatchAny(@"\r", @"\n", "\r\n"))
                     {
                         newKVWriter.WriteLine($"{matchedline}¤{value}");
                     }
@@ -193,87 +191,82 @@ namespace FromJianghuENMod
             }
             FJDebug.Log("Successfully (I hope) created a new KV !");
 
-            System.Media.SystemSounds.Beep.Play();
-            System.Threading.Thread.Sleep(1000);
             System.Media.SystemSounds.Asterisk.Play();
-            System.Threading.Thread.Sleep(1000);
-            System.Media.SystemSounds.Exclamation.Play();
-            System.Media.SystemSounds.Beep.Play();
-            System.Threading.Thread.Sleep(1000);
-            System.Media.SystemSounds.Asterisk.Play();
-            System.Threading.Thread.Sleep(1500);
-            System.Media.SystemSounds.Exclamation.Play();
-            System.Threading.Thread.Sleep(1500);
-            System.Media.SystemSounds.Question.Play();
-            System.Threading.Thread.Sleep(1500);
-            System.Media.SystemSounds.Beep.Play();
-            System.Threading.Thread.Sleep(1000);
-            System.Media.SystemSounds.Beep.Play();
-            System.Threading.Thread.Sleep(1000);
         }
         private void UpdateTranslations()
         {
+            Dictionary<string, string> keysToUpdate = new();
+
             UnityEngine.UI.Text[] alltext = FindObjectsOfType<UnityEngine.UI.Text>();
             TextMeshProUGUI[] alltmp = FindObjectsOfType<TextMeshProUGUI>();
 
-            foreach (UnityEngine.UI.Text x in alltext)
+            void StoreTranslatedStringsForUpdating(Func<IEnumerable<string>> func)
             {
-                if (translationDict.ContainsValue(x.text) && !keystoupdate.ContainsValue(x.text))
+                foreach (string s in func())
                 {
-                    keystoupdate.Add(translationDict.FirstOrDefault(zz => zz.Value == x.text).Key, x.text);
-                    FJDebug.Log("KeyToUpdate filled with " + translationDict.FirstOrDefault(z => z.Value == x.text).Key + "¤" + x.text);
+                    if (translationDict.ContainsValue(s) && !keysToUpdate.ContainsValue(s))
+                    {
+                        string chstring = translationDict.FirstOrDefault(translation => translation.Value == s).Key;
+                        if (!string.IsNullOrEmpty(chstring) && !string.IsNullOrEmpty(s))
+                        {
+                            keysToUpdate[s]=chstring;
+                            FJDebug.Log($"KeyToUpdate filled with {s}={chstring}");
+                        }
+                    }
+                }
+            }
+            void UpdateText(Func<IEnumerable<string>> func, Action<string, int> setter)
+            {
+                var strings = func().ToList();
+                for (int index = 0; index < strings.Count; index++)
+                {
+                    //s may be either untranslated or using outdated translation
+                    string s = strings[index];
+                    string changedString = s;
+
+                    if (string.IsNullOrEmpty(s)) continue;
+
+                    //Check in case the string is untranslated
+                    if (!translationDict.TryGetValue(s, out changedString))
+                    {
+                        FJDebug.Log($"String not found in dictionary: {s}. Trying to find it in keysToUpdate");
+                        FJDebug.Log(keysToUpdate.ContainsKey(s));
+                        FJDebug.Log(keysToUpdate.ContainsValue(s));
+                        //If keysToUpdate has the key, the value will be the original string
+                        if (keysToUpdate.TryGetValue(s, out string originalString))
+                        {
+                            FJDebug.Log($"Found the key in keysToUpdate: {originalString}¤{s}. Trying to fetch translation again");
+                            //Try to translate the original string after fetching it
+                            if (translationDict.TryGetValue(originalString, out changedString))
+                            {
+                                FJDebug.Log($"Found the translation for the key: {originalString}¤{s}¤{changedString}");
+                            }
+                            else
+                            {
+                                FJDebug.Log($"Failed to find the translation for the key: {s} after all attempts");
+                            }
+
+                            //Set actual string if it has changed
+                            if (changedString != s && !string.IsNullOrEmpty(changedString))
+                            {
+                                setter(changedString, index);
+                                FJDebug.Log($"Old Value = {s}");
+                                FJDebug.Log($"Newvalue = {changedString}");
+                            }
+                        }
+                    }
                 }
             }
 
-            foreach (TextMeshProUGUI y in alltmp)
-            {
-                if (translationDict.ContainsValue(y.text) && !keystoupdate.ContainsValue(y.text))
-                {
-                    keystoupdate.Add(translationDict.First(z => z.Value == y.text).Key, y.text);
-                    FJDebug.Log("KeyToUpdate filled with " + translationDict.FirstOrDefault(z => z.Value == y.text).Key + "¤" + y.text);
-                }
-            }
-            translationDict.Clear();
-            Awake();
+            StoreTranslatedStringsForUpdating(() => alltext.Select(x => x.text));
+            StoreTranslatedStringsForUpdating(() => alltmp.Select(x => x.text));
+
+            ReloadDictionary();
+
             LocalizationManager.Instance.SetLanguageID(0);
-            foreach (UnityEngine.UI.Text x in alltext)
-            {
-                string chstring = keystoupdate.FirstOrDefault(zz => zz.Value == x.text).Key;
-                if (x.text != "" && x.text != null)
-                {
-                    if (keystoupdate.ContainsValue(x.text) && translationDict.ContainsKey(chstring))
-                    {
-                        FJDebug.Log("Old Value = " + x.text);
-                        FJDebug.Log("CH key = " + chstring);
-                        FJDebug.Log("Newvalue = " + translationDict[chstring]);
 
-                        if (x.text != translationDict[chstring])
-                        {
-                            x.text = translationDict[chstring];
-                            keystoupdate.Remove(chstring);
-                        }
-                    }
-                }
-            }
-            foreach (TextMeshProUGUI tmpro in alltmp)
-            {
-                if (!string.IsNullOrEmpty(tmpro.text))
-                {
-                    string chstring2 = keystoupdate.FirstOrDefault(zz => zz.Value == tmpro.text).Key;
-                    if (keystoupdate.ContainsValue(tmpro.text) && translationDict.ContainsKey(chstring2))
-                    {
-                        FJDebug.Log($"Old Value = {tmpro.text}");
-                        FJDebug.Log($"CH key = {chstring2}");
-                        FJDebug.Log($"Newvalue = {translationDict[chstring2]}");
-
-                        if (tmpro.text != translationDict[chstring2])
-                        {
-                            tmpro.text = translationDict[chstring2];
-                            keystoupdate.Remove(chstring2);
-                        }
-                    }
-                }
-            }
+            UpdateText(() => alltext.Select(x => x.text), (s, index) => alltext[index].text = s);
+            UpdateText(() => alltmp.Select(x => x.text), (s, index) => alltmp[index].text = s);
         }
         private void ScanAndDumpAssets()
         {
@@ -303,7 +296,7 @@ namespace FromJianghuENMod
 
             Helpers.DeleteFileIfExists(Path.Combine(Paths.PluginPath, "UITextUN.txt"));
 
-            foreach (string s in untranslated.Distinct())
+            foreach (string s in untranslatedCurrent.Distinct())
             {
                 using (StreamWriter tw = new(Path.Combine(Paths.PluginPath, "UITextUN.txt"), append: true))
                 {
@@ -314,6 +307,10 @@ namespace FromJianghuENMod
                 }
             }
         }
+        private void ReloadModifiersAndApply()
+        {
+            ModSettings.Reload();
+            //ModSettings.ApplyAllModifiersToCurrentView();
+        }
     }
-
 }

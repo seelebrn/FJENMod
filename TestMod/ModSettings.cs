@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -17,7 +18,7 @@ namespace FromJianghuENMod
     public class ModSettings
     {
         public static ModSettings Instance;
-
+        private static string SettingsPath => Path.Combine(Paths.PluginPath, "FJSettings.txt");
         private Dictionary<string, object> GeneralSettings { get; set; }
         private List<PatcherInfo> Patchers { get; set; } = new();
         private List<LayoutGroupChangerInfo> LayoutChangers { get; set; } = new();
@@ -27,18 +28,11 @@ namespace FromJianghuENMod
             GeneralSettings = new();
             Patchers = new();
         }
-        public ModSettings(string filePath)
-        {
-            GeneralSettings = new();
-            Patchers = new();
-            Serialize(filePath);
-        }
         public static void Initialize()
         {
-            string settingsPath = Path.Combine(Paths.PluginPath, "FJSettings.txt");
-            if (!Deserialize(settingsPath, out Instance))
+            if (!Deserialize(out Instance))
             {
-                Instance = new(settingsPath);
+                Instance = new();
             }
         }
         // Serialize the settings to a file
@@ -60,20 +54,63 @@ namespace FromJianghuENMod
                 }
             }
         }
-
-        // Deserialize the settings from a file
-        private static bool Deserialize(string filePath, out ModSettings deserializedSettings)
+        public static void Reload()
         {
-            if (!File.Exists(filePath))
+            FJDebug.Log("Reloading");
+            Deserialize(out Instance);
+        }
+        public static void ApplyAllModifiersToCurrentView()
+        {
+            Image[] images = GameObject.FindObjectsOfType<Image>();
+            VerticalLayoutGroup[] vLayoutGroups = GameObject.FindObjectsOfType<VerticalLayoutGroup>();
+            HorizontalLayoutGroup[] hLayoutGroups = GameObject.FindObjectsOfType<HorizontalLayoutGroup>();
+            GridLayoutGroup[] gLayoutGroups = GameObject.FindObjectsOfType<GridLayoutGroup>();
+            TextMeshProUGUI[] tmpros = GameObject.FindObjectsOfType<TextMeshProUGUI>();
+
+            //merge all of them into one collection using a one liner
+            IEnumerable<Component> allInOne = images.Cast<Component>()
+                                 .Concat(vLayoutGroups.Cast<Component>())
+                                 .Concat(hLayoutGroups.Cast<Component>())
+                                 .Concat(gLayoutGroups.Cast<Component>())
+                                 .Concat(tmpros.Cast<Component>());
+            FJDebug.Log($"Applying all. {allInOne.Count()}. resizers: {Instance.ObjectResizers.Count()}, layoutChangers: {Instance.LayoutChangers.Count()}");
+
+            foreach (Component component in allInOne)
+            {
+                if (component)
+                {
+                    if (TryGetApplicableObjectResizer(component, out ObjectResizerInfo resizer))
+                    {
+                        resizer.ApplyObjectResizer(component);
+                    }
+                    if (component is LayoutGroup layout && TryGetApplicableLayoutGroupChanger(layout, out LayoutGroupChangerInfo changerInfo))
+                    {
+                        changerInfo.ApplyLayoutChanger(layout);
+                    }
+                }
+                else
+                {
+                    FJDebug.LogError($"Component is null");
+                }
+            }
+        }
+        // Deserialize the settings from a file
+        private static bool Deserialize(out ModSettings deserializedSettings)
+        {
+            if (!File.Exists(SettingsPath))
             {
                 deserializedSettings = null;
                 return false;
             }
 
             deserializedSettings = new();
-            string[] lines = File.ReadAllLines(filePath);
+            string[] lines = File.ReadAllLines(SettingsPath);
 
             string currentSection = "";
+
+            Instance.Patchers.Clear();
+            Instance.ObjectResizers.Clear();
+            Instance.LayoutChangers.Clear();
 
             foreach (string line in lines)
             {
@@ -263,7 +300,15 @@ namespace FromJianghuENMod
     {
         private string FullPath { get; set; }
         private Vector2 SizeChange { get; set; }
-        public bool CanBeApplied(Component obj) => Helpers.GetFullPathToObject(obj) == FullPath;
+        public bool CanBeApplied(Component obj)
+        {
+            //FJDebug.Log($"==={Helpers.GetFullPathToObject(obj)} vs {FullPath}===\n");
+            return Helpers.GetFullPathToObject(obj) == FullPath;
+        }
+        public override string ToString()
+        {
+            return $"{FullPath} = {SizeChange.x};{SizeChange.y}";
+        }
         public static bool TryCreateObjectResizerFromString(string inputString, out ObjectResizerInfo resizer)
         {
             resizer = null;

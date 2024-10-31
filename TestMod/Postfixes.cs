@@ -3,7 +3,6 @@ using LitJson;
 using System;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using TMPro;
 using UnityEngine;
 
 namespace FromJianghuENMod
