@@ -317,18 +317,18 @@ namespace FromJianghuENMod
                     };
 
                     string layoutGroupFullPath = GetFullPathToObject(layoutGroup);
+                    string componentsOnTheObject = string.Join(", ", uiObject.GetComponents<Component>().Select(c => c.GetType().Name));
 
-                    string outputString = $"--- {uiObject.name} INFO ---\n" +
+                    string outputString = $"\n--- {uiObject.name} (size:{rectSize}) INFO ---\n" +
                                           $"Full Path: {GetFullPathToObject(uiObject)}\n" +
-                                          $"Size: {rectSize}\n" +
+                                          $"Components: {componentsOnTheObject}\n" +
                                           $"Layout Group: {layoutGroupName}\n" +
                                           $"Layout Group Full Path: {layoutGroupFullPath}\n" +
                                           $"Layout Group Parameters: {layoutGroupParameters}\n";
 
                     if (text)
                     {
-                        outputString += $"Text Child name: {text.name}\n" +
-                                        $"Text Child full path: {GetFullPathToObject(text)}\n" +
+                        outputString += $"Text Child full path: {GetFullPathToObject(text)}\n" +
                                         $"Text: {text.text}\n";
                     }
                     outputString += "--- END OF INFO ---";

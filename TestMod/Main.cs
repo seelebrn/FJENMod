@@ -27,6 +27,7 @@ namespace FromJianghuENMod
         public void Awake()
         {
             harmony = new Harmony("Cadenza.IWOL.EnMod");
+            FJDebug.ClearAllLogs();
             Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
             ModSettings.Initialize();
             Translator.Initialize();

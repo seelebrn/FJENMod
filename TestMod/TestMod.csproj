@@ -203,7 +203,7 @@
     <Compile Include="PatcherInfo.cs" />
     <Compile Include="Postfixes.cs" />
     <Compile Include="Prefixes.cs" />
-    <Compile Include="TestMod.cs" />
+    <Compile Include="Main.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Translator.cs" />
     <Compile Include="Transpilers.cs" />
