@@ -2,6 +2,7 @@
 using BepInEx;
 using System;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -21,10 +22,12 @@ namespace FromJianghuENMod
         {
             return cjkCharRegex.IsMatch(s);
         }
+
         public static bool IsChineseOnly(string s)
         {
             return cjkCharRegex.IsMatch(s) && !englishCharRegex.IsMatch(s);
         }
+
         public static void DeleteFileIfExists(string path)
         {
             if (File.Exists(path))
@@ -32,6 +35,7 @@ namespace FromJianghuENMod
                 File.Delete(path);
             }
         }
+
         public static bool DoesMatchAny(this string s, params string[] patterns)
         {
             foreach (string pattern in patterns)
@@ -44,6 +48,12 @@ namespace FromJianghuENMod
             return false;
         }
 
+        /// <summary>
+        /// Fully qualifies the given type name.
+        /// </summary>
+        /// <param name="typeName">The type name to qualify.</param>
+        /// <param name="qualifiedTypeName">The fully qualified type name.</param>
+        /// <returns>True if the type name was qualified; otherwise, false.</returns>
         public static bool FullyQualifyTypes(string typeName, out string qualifiedTypeName)
         {
             qualifiedTypeName = typeName.ToLower() switch
@@ -59,36 +69,31 @@ namespace FromJianghuENMod
                 FJDebug.Log($"Converted {typeName} to type name: {qualifiedTypeName}");
             return qualifiedTypeName != typeName;
         }
+
         /// <summary>
-        /// This will properly get the type from the assembly , even if it's a generic type
+        /// Resolves the type from the given type string, even if it's a generic type.
         /// </summary>
-        /// <param name="typeString"></param>
-        /// <returns></returns>
+        /// <param name="typeString">The type string to resolve.</param>
+        /// <returns>The resolved type, or null if the type could not be resolved.</returns>
         public static Type ResolveType(string typeString)
         {
-            // Check if the type is a generic type (e.g., "List<int>")
             if (typeString.Contains("<") && typeString.EndsWith(">"))
             {
-                // Extract the generic type name and the inner type(s)
                 int genericStartIndex = typeString.IndexOf("<");
-                string genericTypeName = typeString.Substring(0, genericStartIndex); // e.g., "List"
-                string innerTypesName = typeString.Substring(genericStartIndex + 1, typeString.Length - genericStartIndex - 2); // e.g., "int"
+                string genericTypeName = typeString.Substring(0, genericStartIndex);
+                string innerTypesName = typeString.Substring(genericStartIndex + 1, typeString.Length - genericStartIndex - 2);
                 FJDebug.Log($"Trying to resolve generic type: {genericTypeName} with inner types: {innerTypesName}. typestring: {typeString}");
-                //incase any type names need qualifying, do it first
                 if (FullyQualifyTypes(innerTypesName, out string qualifiedTypeName))
                     innerTypesName = qualifiedTypeName;
                 if (FullyQualifyTypes(genericTypeName, out string qualifiedGenericTypeName))
                     genericTypeName = qualifiedGenericTypeName;
 
-                // Split inner types in case of multiple generic arguments (e.g., "Dictionary<int, string>")
                 string[] innerTypeNames = innerTypesName.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-
-                // Recursively resolve each inner type
                 Type[] innerTypes = new Type[innerTypeNames.Length];
                 for (int i = 0; i < innerTypeNames.Length; i++)
                 {
-                    string innerTypeName = innerTypeNames[i].Trim(); // Remove any extra spaces
-                    innerTypes[i] = GetTypeFromAssembly(innerTypeName); // Resolve the inner type using GetTypeFromAssembly
+                    string innerTypeName = innerTypeNames[i].Trim();
+                    innerTypes[i] = GetTypeFromAssembly(innerTypeName);
                     if (innerTypes[i] == null)
                     {
                         FJDebug.LogError($"Failed to resolve inner type: {innerTypeName}");
@@ -96,7 +101,6 @@ namespace FromJianghuENMod
                     }
                 }
 
-                // Resolve the generic type definition (e.g., "List<>")
                 Type genericTypeDefinition = GetTypeFromAssembly(genericTypeName);
                 if (genericTypeDefinition == null)
                 {
@@ -107,16 +111,20 @@ namespace FromJianghuENMod
                 {
                     FJDebug.Log($"Successfully resolved generic type: {genericTypeName}");
                 }
-                // Make the generic type with the resolved inner types
                 return genericTypeDefinition.MakeGenericType(innerTypes);
             }
             else
             {
                 FJDebug.Log("Not generic, passing to GetTypeFromAssembly");
-                // If it's not a generic type, just resolve it normally
                 return GetTypeFromAssembly(typeString);
             }
         }
+
+        /// <summary>
+        /// Gets the type from the assembly by the given type name.
+        /// </summary>
+        /// <param name="typeName">The type name to resolve.</param>
+        /// <returns>The resolved type, or null if the type could not be found.</returns>
         public static Type GetTypeFromAssembly(string typeName)
         {
             Type type = Type.GetType(typeName);
@@ -124,15 +132,8 @@ namespace FromJianghuENMod
             {
                 FJDebug.Log($"Couldn't find type {typeName} in default assembly, trying Assembly-Csharp");
 
-                Assembly assembly = null;
-                foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    if (asm.GetName().Name == "Assembly-CSharp")
-                    {
-                        assembly = asm;
-                        break;
-                    }
-                }
+                Assembly assembly = AppDomain.CurrentDomain.GetAssemblies()
+                    .FirstOrDefault(asm => asm.GetName().Name == "Assembly-CSharp");
 
                 if (assembly == null)
                 {
@@ -140,16 +141,12 @@ namespace FromJianghuENMod
                     return null;
                 }
 
-                // Get the type from the assembly
                 type = assembly.GetType(typeName);
                 if (type == null)
                 {
                     FJDebug.LogError($"Failed to find type {typeName} in both default assembly and Assembly-Csharp");
 
-                    // Get all types from the assembly
                     Type[] types = assembly.GetTypes();
-
-                    // Print each type's full name
                     foreach (Type t in types)
                     {
                         FJDebug.Log($"TYPES: |{t.FullName}| |{typeName}| {t.FullName == typeName}");
@@ -168,6 +165,15 @@ namespace FromJianghuENMod
                 FJDebug.LogError($"Failed to find type {typeName} after all attempts");
             return type;
         }
+
+        /// <summary>
+        /// Tries to get the component of type T in the children of the given component, searching deeply.
+        /// </summary>
+        /// <typeparam name="T">The type of component to find.</typeparam>
+        /// <param name="monoBehavior">The component to search in.</param>
+        /// <param name="component">The found component, or null if not found.</param>
+        /// <param name="silent">If true, suppresses error logging.</param>
+        /// <returns>The found component, or null if not found.</returns>
         public static T TryGetComponentInChildrenDeep<T>(this Component monoBehavior, out T component, bool silent = true) where T : MonoBehaviour
         {
             component = monoBehavior.GetComponentInChildren<T>();
@@ -189,6 +195,14 @@ namespace FromJianghuENMod
             }
             return component;
         }
+
+        /// <summary>
+        /// Gets the component of type T in the parents of the given MonoBehaviour, searching deeply.
+        /// </summary>
+        /// <typeparam name="T">The type of component to find.</typeparam>
+        /// <param name="monoBehavior">The MonoBehaviour to search in.</param>
+        /// <param name="silent">If true, suppresses error logging.</param>
+        /// <returns>The found component, or null if not found.</returns>
         public static T GetComponentInParentsDeep<T>(this MonoBehaviour monoBehavior, bool silent = true) where T : MonoBehaviour
         {
             if (monoBehavior.TryGetComponentInParent(out T result))
@@ -214,6 +228,15 @@ namespace FromJianghuENMod
             }
             return default;
         }
+
+        /// <summary>
+        /// Tries to get the component of type T in the children of the given MonoBehaviour.
+        /// </summary>
+        /// <typeparam name="T">The type of component to find.</typeparam>
+        /// <param name="monoBehavior">The MonoBehaviour to search in.</param>
+        /// <param name="component">The found component, or null if not found.</param>
+        /// <param name="silent">If true, suppresses error logging.</param>
+        /// <returns>The found component, or null if not found.</returns>
         public static T TryGetComponentInChildren<T>(this MonoBehaviour monoBehavior, out T component, bool silent = true) where T : MonoBehaviour
         {
             component = monoBehavior.GetComponentInChildren<T>();
@@ -223,6 +246,15 @@ namespace FromJianghuENMod
             }
             return component;
         }
+
+        /// <summary>
+        /// Tries to get the component of type T in the parent of the given MonoBehaviour.
+        /// </summary>
+        /// <typeparam name="T">The type of component to find.</typeparam>
+        /// <param name="monoBehavior">The MonoBehaviour to search in.</param>
+        /// <param name="component">The found component, or null if not found.</param>
+        /// <param name="silent">If true, suppresses error logging.</param>
+        /// <returns>The found component, or null if not found.</returns>
         public static T TryGetComponentInParent<T>(this MonoBehaviour monoBehavior, out T component, bool silent = true) where T : MonoBehaviour
         {
             component = monoBehavior.GetComponentInParent<T>();
@@ -232,6 +264,12 @@ namespace FromJianghuENMod
             }
             return component;
         }
+
+        /// <summary>
+        /// Gets the full path to the given component in the hierarchy.
+        /// </summary>
+        /// <param name="component">The component to get the path for.</param>
+        /// <returns>The full path to the component.</returns>
         public static string GetFullPathToObject(Component component)
         {
             if (component == null) return string.Empty;
@@ -247,6 +285,7 @@ namespace FromJianghuENMod
 
             return objectFullPath.ToString();
         }
+
         public static void TryPrintOutInfo(MonoBehaviour uiObject)
         {
             if (!uiObject) return;
@@ -262,21 +301,23 @@ namespace FromJianghuENMod
 
                     LayoutGroup layoutGroup = uiObject.GetComponentInParentsDeep<LayoutGroup>();
 
-                    string layoutGroupName = layoutGroup is VerticalLayoutGroup ? "VerticalLayoutGroup" : layoutGroup is HorizontalLayoutGroup ? "HorizontalLayoutGroup" : layoutGroup is GridLayoutGroup ? "GridLayoutGroup" : "None";
-                    string layoutGroupParameters;
+                    string layoutGroupName = layoutGroup switch
+                    {
+                        VerticalLayoutGroup => "VerticalLayoutGroup",
+                        HorizontalLayoutGroup => "HorizontalLayoutGroup",
+                        GridLayoutGroup => "GridLayoutGroup",
+                        _ => "None"
+                    };
+
+                    string layoutGroupParameters = layoutGroup switch
+                    {
+                        HorizontalOrVerticalLayoutGroup group => $"spacing: {group.spacing}, size {group.GetComponent<RectTransform>().sizeDelta}, control {group.childControlWidth}",
+                        GridLayoutGroup gGroup => $"spacing: {gGroup.spacing}, size {gGroup.GetComponent<RectTransform>().sizeDelta}, {gGroup.cellSize}",
+                        _ => "None"
+                    };
+
                     string layoutGroupFullPath = GetFullPathToObject(layoutGroup);
-                    if (layoutGroup is HorizontalOrVerticalLayoutGroup group)
-                    {
-                        layoutGroupParameters = $"spacing: {group.spacing}, size {group.GetComponent<RectTransform>().sizeDelta}, control {group.childControlWidth}";
-                    }
-                    else if (layoutGroup is GridLayoutGroup gGroup)
-                    {
-                        layoutGroupParameters = $"spacing: {gGroup.spacing}, size {gGroup.GetComponent<RectTransform>().sizeDelta}, {gGroup.cellSize}";
-                    }
-                    else
-                    {
-                        layoutGroupParameters = "None";
-                    }
+
                     string outputString = $"--- {uiObject.name} INFO ---\n" +
                                           $"Full Path: {GetFullPathToObject(uiObject)}\n" +
                                           $"Size: {rectSize}\n" +
@@ -292,21 +333,96 @@ namespace FromJianghuENMod
                     }
                     outputString += "--- END OF INFO ---";
 
-                    Debug.Log(outputString);
+                    FJDebug.Log(outputString, "ObjectInfo");
                 }
             }
         }
     }
     public static class FJDebug
     {
-        public static void Log(object message)
+        /// <summary>
+        /// Logs a message to the console or a file.
+        /// </summary>
+        /// <param name="message">The message to log.</param>
+        /// <param name="logFileName">The name of the log file without the extension.</param>
+        public static void Log(object message, string logFileName = "")
         {
             if (ModSettings.GetSettingValue<bool>("enableDebugLog"))
-                Debug.Log($"[FromJianghuENMod Log] {message}");
+            {
+                if (!string.IsNullOrEmpty(logFileName))
+                    LogToFile(message, "Log", logFileName);
+                else
+                    Debug.Log($"[FromJianghuENMod Log] {message}");
+            }
         }
-        public static void LogError(object message)
+
+        /// <summary>
+        /// Logs an error message to the console or a file.
+        /// </summary>
+        /// <param name="message">The error message to log.</param>
+        /// <param name="logFileName">The name of the log file without the extension.</param>
+        public static void LogError(object message, string logFileName = "")
         {
-            Debug.LogError($"[FromJianghuENMod Error] {message}");
+            if (!string.IsNullOrEmpty(logFileName))
+                LogToFile(message, "Error", logFileName);
+            else
+                Debug.LogError($"[FromJianghuENMod Error] {message}");
+        }
+
+        /// <summary>
+        /// Logs a message to a file.
+        /// </summary>
+        /// <param name="message">The message to log.</param>
+        /// <param name="messageType">The type of message (Log or Error).</param>
+        /// <param name="logFileName">The name of the log file without the extension.</param>
+        private static void LogToFile(object message, string messageType, string logFileName)
+        {
+            if (string.IsNullOrEmpty(message.ToString()) || string.IsNullOrEmpty(messageType) || string.IsNullOrEmpty(logFileName))
+            {
+                Debug.LogError("[FromJianghuENMod Error] Invalid parameters provided to LogToFile.");
+                return;
+            }
+
+            string logFilePath = Path.Combine(Paths.PluginPath, "Logs", $"{logFileName}.txt");
+            string logMessage = $"[FromJianghuENMod {messageType}] {message}\n";
+            string logDirectory = Path.GetDirectoryName(logFilePath);
+
+            try
+            {
+                if (!Directory.Exists(logDirectory))
+                {
+                    Directory.CreateDirectory(logDirectory);
+                }
+
+                using (StreamWriter writer = new(logFilePath, true, Encoding.UTF8))
+                {
+                    writer.Write(logMessage);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[FromJianghuENMod Error] Failed to log message to file: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Clears all log files in the Logs directory.
+        /// </summary>
+        public static void ClearAllLogs()
+        {
+            string logDirectory = Path.Combine(Paths.PluginPath, "Logs");
+
+            if (Directory.Exists(logDirectory))
+            {
+                try
+                {
+                    Directory.Delete(logDirectory, true);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[FromJianghuENMod Error] Failed to clear logs: {ex.Message}");
+                }
+            }
         }
     }
 }

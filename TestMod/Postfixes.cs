@@ -4,6 +4,7 @@ using System;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace FromJianghuENMod
 {
@@ -31,6 +32,7 @@ namespace FromJianghuENMod
             __instance.TeachLevelText.SetText("Teach (ask to teach) upper limit：{0}", (float)knowledgeSkillInfo.MaxTeachLevel);
         }
     }
+    #region JSONs
     /*
   [HarmonyPatch]
   static class JSONObject_Patch
@@ -101,11 +103,11 @@ namespace FromJianghuENMod
         {
             if (__result is string result && !string.IsNullOrEmpty(result))
             {
-                if (FromJianghuENMod.TryTranslatingString(result, out string translated))
+                if (Translator.TryTranslatingString(result, out string translated))
                 {
                     try
                     {
-                        FromJianghuENMod.matched.Add(result);
+                        Translator.matched.Add(result);
                         __result = translated;
                     }
                     catch (Exception e)
@@ -116,7 +118,7 @@ namespace FromJianghuENMod
             }
         }
     }
-
+    #endregion
     [HarmonyPatch(typeof(TimeModel), "GetChineseTime")]
     static class TimeModel_GetChineseTime
     {
@@ -184,6 +186,40 @@ namespace FromJianghuENMod
             {
                 __result = __result + "0";
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(Image), "OnEnable")]
+    static class Image_Awake
+    {
+        static void Postfix(Image __instance)
+        {
+            if (!__instance) return;
+
+            Helpers.TryPrintOutInfo(__instance);
+            ModSettings.ApplyApplicableModifiers(__instance);
+        }
+    }
+    [HarmonyPatch(typeof(LayoutGroup), "OnEnable")]
+    static class LayoutGroup_Enable
+    {
+        static void Postfix(LayoutGroup __instance)
+        {
+            if (!__instance) return;
+
+            Helpers.TryPrintOutInfo(__instance);
+            ModSettings.ApplyApplicableModifiers(__instance);
+        }
+    }
+    [HarmonyPatch(typeof(Text), "OnEnable")]
+    static class Text_OnEnable
+    {
+        static void Postfix(LayoutGroup __instance)
+        {
+            if (!__instance) return;
+
+            Helpers.TryPrintOutInfo(__instance);
+            ModSettings.ApplyApplicableModifiers(__instance);
         }
     }
 }

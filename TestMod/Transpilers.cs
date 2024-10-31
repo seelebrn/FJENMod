@@ -55,7 +55,7 @@ namespace FromJianghuENMod
             string modifiedValue = originalValue;
 
             //Try translating if it's pure Chinese
-            if (Helpers.IsChineseOnly(modifiedValue) && FromJianghuENMod.TryTranslatingString(originalValue, out string translatedValue))
+            if (Helpers.IsChineseOnly(modifiedValue) && Translator.TryTranslatingString(originalValue, out string translatedValue))
             {
                 modifiedValue = translatedValue;
             }

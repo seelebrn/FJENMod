@@ -1,43 +1,53 @@
-﻿using BehaviorDesigner.Runtime.Tasks.Unity.UnityString;
-using BepInEx;
-using HarmonyLib;
+﻿using BepInEx;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using TestMod;
 using TMPro;
-using UnityEngine;
 
 namespace FromJianghuENMod
 {
-    [BepInPlugin(pluginGuid, pluginName, pluginVersion)]
-    public class FromJianghuENMod : BaseUnityPlugin
+    /// <summary>
+    /// Provides translation functionalities for the mod, including loading translations, 
+    /// attempting translations, and exporting untranslated and obsolete strings.
+    /// </summary>
+    public class Translator
     {
-        public const string pluginGuid = "Cadenza.IWOL.EnMod";
-        public const string pluginName = "FJ ENMod Continued";
-        public const string pluginVersion = "0.6";
-        public static Dictionary<string, string> UIText = new();
         public static Dictionary<string, string> translationDict;
-
-        private float lastUntranslatedUpdate = 0;
-        private float UntranslatedUpdateInterval => (float)ModSettings.GetSettingValue<int>("unloadUntranslatedStringsInterval");
-
         public static HashSet<string> untranslatedLastLoaded = new();
         public static HashSet<string> untranslatedCurrent = new();
         public static HashSet<string> obsolete = new();
         public static HashSet<string> matched = new();
 
+        /// <summary>
+        /// Gets the path to the KV.txt file containing translations.
+        /// </summary>
         public static string KVPath => Path.Combine(Paths.PluginPath, "Translations", "KV.txt");
+
+        /// <summary>
+        /// Gets the path to the NewKV.txt file for new translations.
+        /// </summary>
         public static string NewKVPath => Path.Combine(Paths.PluginPath, "NewKV.txt");
+
+        /// <summary>
+        /// Gets the path to the untranslated.txt file for untranslated strings.
+        /// </summary>
         public static string UntranslatedPath => Path.Combine(Paths.PluginPath, "untranslated.txt");
+
+        /// <summary>
+        /// Gets the path to the obsolete.txt file for obsolete translations.
+        /// </summary>
         public static string ObsoletePath => Path.Combine(Paths.PluginPath, "obsolete.txt");
 
-        public static void InitializeTranslationDictionary()
+        public static void Initialize()
         {
             ReloadDictionary();
         }
+
+        /// <summary>
+        /// Reloads the translation dictionary from the KV.txt file.
+        /// </summary>
         private static void ReloadDictionary()
         {
             translationDict = new();
@@ -63,29 +73,12 @@ namespace FromJianghuENMod
             FJDebug.Log("Dictionary reloaded !");
         }
 
-        public static Harmony harmony;
-        public void Awake()
-        {
-            harmony = new Harmony("Cadenza.IWOL.EnMod");
-            Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
-            ModSettings.Initialize();
-            InitializeTranslationDictionary();
-            ModSettings.ApplySettings();
-            Logger.LogInfo("Hello World ! Welcome to Cadenza's plugin !");
-            harmony.PatchAll();
-        }
-
-        public void OnDestroy()
-        {
-            harmony?.UnpatchSelf();
-        }
-
         /// <summary>
-        /// Tries to get the translation for a given key
+        /// Attempts to translate a given string key.
         /// </summary>
-        /// <param name="key">Original string</param>
-        /// <param name="translatedString">Translation fetched from the dictionary</param>
-        /// <returns>True if the key is chinese and has been found in the dictionary</returns>
+        /// <param name="key">The string key to translate.</param>
+        /// <param name="translatedString">The translated string if found, otherwise the original key.</param>
+        /// <returns>True if the translation was successful, otherwise false.</returns>
         public static bool TryTranslatingString(string key, out string translatedString)
         {
             key = key.Replace("\r", "\\r").Replace("\n", "\\n").Replace("\"", "\\\"");
@@ -98,26 +91,15 @@ namespace FromJianghuENMod
             else if (Helpers.IsChineseOnly(key) && untranslatedCurrent.Add(key))
             {
                 FJDebug.Log($"Failed to find translation for key: {key}. Putting it in untranslated list.");
-
             }
 
             return translatedString != key;
         }
 
-        //------------------------------------------------------------------------------------------
-        private void Update()
-        {
-            if (Input.GetKey(KeyCode.F1)) ExportStrings();
-            else if (Input.GetKey(KeyCode.F2)) UpdateTranslations();
-            else if (Input.GetKey(KeyCode.F3)) ScanAndDumpAssets();
-            else if (Input.GetKey(KeyCode.F4)) ReloadModifiersAndApply();
-
-            if (Time.time - lastUntranslatedUpdate >= UntranslatedUpdateInterval)
-                UpdateUntranslatedTextFile();
-        }
-
-
-        private void UpdateUntranslatedTextFile()
+        /// <summary>
+        /// Updates the untranslated.txt file with new untranslated strings.
+        /// </summary>
+        public static void UpdateUntranslatedTextFile()
         {
             if (ModSettings.GetSettingValue<bool>("unloadUntranslatedStrings"))
             {
@@ -139,11 +121,13 @@ namespace FromJianghuENMod
                     }
                     untranslatedLastLoaded = new HashSet<string>(untranslatedCurrent);
                 }
-                lastUntranslatedUpdate = Time.time;
             }
         }
 
-        private void ExportStrings()
+        /// <summary>
+        /// Exports untranslated and obsolete strings to their respective files and creates a new KV file.
+        /// </summary>
+        public static void ExportStrings()
         {
             FJDebug.Log("Cleaning a few things...");
 
@@ -193,12 +177,16 @@ namespace FromJianghuENMod
 
             System.Media.SystemSounds.Asterisk.Play();
         }
-        private void UpdateTranslations()
+
+        /// <summary>
+        /// Updates the translations in the game by checking for new translations and applies them.
+        /// </summary>
+        public static void UpdateTranslations()
         {
             Dictionary<string, string> keysToUpdate = new();
 
-            UnityEngine.UI.Text[] alltext = FindObjectsOfType<UnityEngine.UI.Text>();
-            TextMeshProUGUI[] alltmp = FindObjectsOfType<TextMeshProUGUI>();
+            UnityEngine.UI.Text[] alltext = UnityEngine.Object.FindObjectsOfType<UnityEngine.UI.Text>();
+            TextMeshProUGUI[] alltmp = UnityEngine.Object.FindObjectsOfType<TextMeshProUGUI>();
 
             void StoreTranslatedStringsForUpdating(Func<IEnumerable<string>> func)
             {
@@ -209,7 +197,7 @@ namespace FromJianghuENMod
                         string chstring = translationDict.FirstOrDefault(translation => translation.Value == s).Key;
                         if (!string.IsNullOrEmpty(chstring) && !string.IsNullOrEmpty(s))
                         {
-                            keysToUpdate[s]=chstring;
+                            keysToUpdate[s] = chstring;
                             FJDebug.Log($"KeyToUpdate filled with {s}={chstring}");
                         }
                     }
@@ -217,7 +205,7 @@ namespace FromJianghuENMod
             }
             void UpdateText(Func<IEnumerable<string>> func, Action<string, int> setter)
             {
-                var strings = func().ToList();
+                List<string> strings = func().ToList();
                 for (int index = 0; index < strings.Count; index++)
                 {
                     //s may be either untranslated or using outdated translation
@@ -267,50 +255,6 @@ namespace FromJianghuENMod
 
             UpdateText(() => alltext.Select(x => x.text), (s, index) => alltext[index].text = s);
             UpdateText(() => alltmp.Select(x => x.text), (s, index) => alltmp[index].text = s);
-        }
-        private void ScanAndDumpAssets()
-        {
-            DirectoryInfo di = new(Path.Combine(Paths.GameRootPath, "FromJianghu_Data"));
-
-            foreach (FileInfo x in di.GetFiles())
-            {
-                if (x.FullName.Contains(".assets") || x.FullName.Contains("sharedassets"))
-                {
-                    if (!x.FullName.Contains("resS"))
-                    {
-                        FJDebug.Log("Now scanning : " + x.FullName);
-                        Dump.LoadAssetsFile(x.FullName);
-                    }
-                }
-            }
-            DirectoryInfo di2 = new(Path.Combine(Paths.GameRootPath, "FromJianghu_Data", "StreamingAssets", "AssetBundles"));
-
-            foreach (FileInfo x in di2.GetFiles())
-            {
-                if (!x.FullName.Contains("manifest"))
-                {
-                    FJDebug.Log("Now scanning : " + x.FullName);
-                    Dump.LoadAssetBundles(x.FullName);
-                }
-            }
-
-            Helpers.DeleteFileIfExists(Path.Combine(Paths.PluginPath, "UITextUN.txt"));
-
-            foreach (string s in untranslatedCurrent.Distinct())
-            {
-                using (StreamWriter tw = new(Path.Combine(Paths.PluginPath, "UITextUN.txt"), append: true))
-                {
-                    if (!UIText.Keys.Contains(s))
-                    {
-                        tw.Write(Regex.Unescape(s + Environment.NewLine));
-                    }
-                }
-            }
-        }
-        private void ReloadModifiersAndApply()
-        {
-            ModSettings.Reload();
-            //ModSettings.ApplyAllModifiersToCurrentView();
         }
     }
 }

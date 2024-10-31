@@ -199,10 +199,13 @@
     <Compile Include="Dump.cs" />
     <Compile Include="Helpers.cs" />
     <Compile Include="ModSettings.cs" />
+    <Compile Include="ObjectModifier.cs" />
+    <Compile Include="PatcherInfo.cs" />
     <Compile Include="Postfixes.cs" />
     <Compile Include="Prefixes.cs" />
     <Compile Include="TestMod.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Translator.cs" />
     <Compile Include="Transpilers.cs" />
   </ItemGroup>
   <ItemGroup>
