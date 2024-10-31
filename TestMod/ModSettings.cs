@@ -30,6 +30,9 @@ namespace FromJianghuENMod
             Patchers = new();
         }
 
+        /// <summary>
+        /// Initializes the ModSettings instance by deserializing from the settings file.
+        /// </summary>
         public static void Initialize()
         {
             if (!Deserialize(out Instance))
@@ -38,6 +41,10 @@ namespace FromJianghuENMod
             }
         }
 
+        /// <summary>
+        /// Serializes the current settings to a file.
+        /// </summary>
+        /// <param name="filePath">The file path to save the settings.</param>
         private void Serialize(string filePath)
         {
             using StreamWriter writer = new(filePath);
@@ -55,12 +62,18 @@ namespace FromJianghuENMod
             }
         }
 
+        /// <summary>
+        /// Reloads the settings from the settings file.
+        /// </summary>
         public static void Reload()
         {
             FJDebug.Log("Reloading");
             Deserialize(out Instance);
         }
 
+        /// <summary>
+        /// Applies all object modifiers to the current view.
+        /// </summary>
         public static void ApplyAllModifiersToCurrentView()
         {
             var allInOne = GameObject.FindObjectsOfType<Component>()
@@ -81,6 +94,11 @@ namespace FromJianghuENMod
             }
         }
 
+        /// <summary>
+        /// Deserializes the settings from the settings file.
+        /// </summary>
+        /// <param name="deserializedSettings">The deserialized ModSettings instance.</param>
+        /// <returns>True if deserialization was successful, otherwise false.</returns>
         private static bool Deserialize(out ModSettings deserializedSettings)
         {
             if (!File.Exists(SettingsPath))
@@ -106,7 +124,7 @@ namespace FromJianghuENMod
                     currentSection = line;
                     continue;
                 }
-                //Apply settings and patchers
+                // Apply settings and patchers
                 if (currentSection == "[General Settings]")
                 {
                     string[] parts = line.Split('=');
@@ -139,6 +157,9 @@ namespace FromJianghuENMod
             return true;
         }
 
+        /// <summary>
+        /// Applies the settings by patching all patchers.
+        /// </summary>
         public static void ApplySettings()
         {
             foreach (PatcherInfo patcher in Instance.Patchers)
@@ -147,6 +168,12 @@ namespace FromJianghuENMod
             }
         }
 
+        /// <summary>
+        /// Gets the value of a setting by key.
+        /// </summary>
+        /// <typeparam name="T">The type of the setting value.</typeparam>
+        /// <param name="key">The key of the setting.</param>
+        /// <returns>The value of the setting if found and of the correct type, otherwise default.</returns>
         public static T GetSettingValue<T>(string key)
         {
             if (Instance.GeneralSettings.TryGetValue(key, out object value))
@@ -162,6 +189,11 @@ namespace FromJianghuENMod
             }
             return default;
         }
+
+        /// <summary>
+        /// Applies all applicable object modifiers to the specified component.
+        /// </summary>
+        /// <param name="obj">The component to apply the modifiers to.</param>
         public static void ApplyApplicableModifiers(Component obj)
         {
             if (TryGetApplicableModifiers(obj, out List<ObjectModifier> applicableModifiers))
@@ -172,6 +204,13 @@ namespace FromJianghuENMod
                 }
             }
         }
+
+        /// <summary>
+        /// Tries to get all applicable object modifiers for the specified component.
+        /// </summary>
+        /// <param name="obj">The component to check for applicable modifiers.</param>
+        /// <param name="applicableModifiers">The list of applicable object modifiers.</param>
+        /// <returns>True if there are applicable modifiers, otherwise false.</returns>
         public static bool TryGetApplicableModifiers(Component obj, out List<ObjectModifier> applicableModifiers)
         {
             applicableModifiers = Instance.ObjectModifiers.Where(m => m.CanBeApplied(obj)).ToList();
